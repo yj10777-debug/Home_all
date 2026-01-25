@@ -16,7 +16,17 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+You can start editing the page by modifying `src/app/page.tsx`. The page auto-updates as you edit the file.
+
+### API: `/api/meals`
+
+- **GET** `/api/meals?date=YYYY-MM-DD` — List meal logs for the date (default: today). Require `Authorization: Bearer <JWT>`.
+- **POST** `/api/meals` — Create a meal log with items. Body: `{ mealLog: { loggedAt, mealType, ... }, items: [ { name, cal, ... } ] }`.
+- **DELETE** `/api/meals/:id` — Delete a meal log (ownership checked via JWT).
+
+Set `SUPABASE_JWT_SECRET` in `.env.local` (from Supabase → Project Settings → API → JWT Secret) for JWT verification.
+
+**Tests:** `npm test` (Jest; Prisma/auth mocked in `tests/api/meals.test.ts`).
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 

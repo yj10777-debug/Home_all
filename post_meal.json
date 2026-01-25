@@ -1,0 +1,11 @@
+{
+  "mealLog": {
+    "loggedAt": "2026-01-25T12:30:00+09:00",
+    "mealType": "lunch",
+    "source": "asken"
+  },
+  "items": [
+    { "name": "鶏むね肉", "amount": 150, "unit": "g", "cal": 330, "protein": 33, "fat": 6, "carb": 0 },
+    { "name": "ごはん", "amount": 150, "unit": "g", "cal": 240, "protein": 4, "fat": 1, "carb": 53 }
+  ]
+}

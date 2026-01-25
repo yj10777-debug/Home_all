@@ -1,0 +1,57 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String?  @unique
+  createdAt DateTime @default(now())
+
+  meals     MealLog[]
+}
+
+model MealLog {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  loggedAt     DateTime
+  mealType     String
+  source       String?   // asken / manual / import
+  note         String?
+
+  totalCal     Float?    // 任意：取り込み後に集計して埋める
+  totalProtein Float?
+  totalFat     Float?
+  totalCarb    Float?
+
+  items        MealItem[]
+
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([userId, loggedAt])
+}
+
+model MealItem {
+  id        String   @id @default(cuid())
+  mealId    String
+  meal      MealLog  @relation(fields: [mealId], references: [id], onDelete: Cascade)
+
+  name      String
+  amount    Float?
+  unit      String?
+  cal       Float?
+  protein   Float?
+  fat       Float?
+  carb      Float?
+
+  createdAt DateTime @default(now())
+
+  @@index([mealId])
+}
