@@ -69,6 +69,7 @@ RUN apt-get update && apt-get install -y \
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
 
 # 本番用ファイルのコピー
 COPY --from=builder /app/public ./public
