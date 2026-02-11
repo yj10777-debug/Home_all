@@ -70,7 +70,7 @@ export const WeeklyCaloriesChart: React.FC<WeeklyCaloriesChartProps> = ({ data, 
                     <BarChart
                         data={data}
                         margin={{ top: 12, right: 12, left: 4, bottom: 4 }}
-                        onClick={(state) => {
+                        onClick={(state: any) => {
                             if (state?.activePayload?.[0]?.payload) {
                                 handleClick(state.activePayload[0].payload);
                             }
