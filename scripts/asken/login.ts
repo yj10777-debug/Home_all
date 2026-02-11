@@ -50,11 +50,11 @@ export async function autoLogin(options?: { headless?: boolean }): Promise<strin
         await page.goto('https://www.asken.jp/login', { waitUntil: 'domcontentloaded' });
 
         // メールアドレスとパスワードを入力
-        await page.fill('input[name="login_id"], input[type="email"], #login_id, #email', email);
-        await page.fill('input[name="password"], input[type="password"], #password', password);
+        await page.fill('#CustomerMemberEmail', email);
+        await page.fill('#CustomerMemberPasswdPlain', password);
 
         // ログインボタンをクリック
-        await page.click('button[type="submit"], input[type="submit"], .btn-login, [data-testid="login-button"]');
+        await page.click('#SubmitSubmit');
 
         // ログイン後のリダイレクトを待つ（ログインページを離れるまで）
         await page.waitForURL((url) => !url.toString().includes('/login'), { timeout: 30000 });
