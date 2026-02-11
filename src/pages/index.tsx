@@ -13,29 +13,48 @@ export default function Home() {
     const [weeklyData, setWeeklyData] = useState<WeeklyData[]>([]);
     const [loading, setLoading] = useState(true);
     const [todayCalories, setTodayCalories] = useState(0);
+    const [syncing, setSyncing] = useState(false);
+    const [syncResult, setSyncResult] = useState<{ strongCount: number; dayCount: number; errors: string[] } | null>(null);
 
     const GOAL_CALORIES = 2000;
 
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                const res = await fetch('/api/stats/weekly-calories');
-                if (res.ok) {
-                    const data = await res.json();
-                    setWeeklyData(data);
-
-                    // Calculate today's calories
-                    const todayStr = format(new Date(), 'yyyy-MM-dd');
-                    const todayEntry = data.find((d: WeeklyData) => d.date === todayStr);
-                    setTodayCalories(todayEntry?.calories || 0);
-                }
-            } catch (error) {
-                console.error('Failed to fetch stats', error);
-            } finally {
-                setLoading(false);
+    const fetchData = async () => {
+        try {
+            const res = await fetch('/api/stats/weekly-from-day');
+            if (res.ok) {
+                const data = await res.json();
+                setWeeklyData(data);
+                const todayStr = format(new Date(), 'yyyy-MM-dd');
+                const todayEntry = data.find((d: WeeklyData) => d.date === todayStr);
+                setTodayCalories(todayEntry?.calories || 0);
             }
-        };
+        } catch (error) {
+            console.error('Failed to fetch stats', error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
+    const handleSync = async () => {
+        setSyncing(true);
+        setSyncResult(null);
+        try {
+            const res = await fetch("/api/sync", { method: "POST" });
+            const data = await res.json();
+            if (res.ok && data.success) {
+                setSyncResult({ strongCount: data.strongCount, dayCount: data.dayCount, errors: data.errors || [] });
+                await fetchData();
+            } else {
+                setSyncResult({ strongCount: 0, dayCount: 0, errors: [data.error || "取得に失敗しました"] });
+            }
+        } catch (e) {
+            setSyncResult({ strongCount: 0, dayCount: 0, errors: [String(e)] });
+        } finally {
+            setSyncing(false);
+        }
+    };
+
+    useEffect(() => {
         fetchData();
     }, []);
 
@@ -92,6 +111,25 @@ export default function Home() {
                     )}
                 </section>
 
+                {/* データ取得 */}
+                <section className="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+                    <button
+                        onClick={handleSync}
+                        disabled={syncing}
+                        className="w-full py-3 px-4 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
+                    >
+                        {syncing ? "取得中..." : "🔄 データを取得（あすけん・Strong 今日まで）"}
+                    </button>
+                    {syncResult && (
+                        <p className="mt-2 text-sm text-gray-600">
+                            Strong: {syncResult.strongCount}日分 / day統合: {syncResult.dayCount}件
+                            {syncResult.errors.length > 0 && (
+                                <span className="block text-amber-600 mt-1">{syncResult.errors.join(" ")}</span>
+                            )}
+                        </p>
+                    )}
+                </section>
+
                 {/* Quick Actions */}
                 <nav className="grid grid-cols-2 gap-4">
                     <Link href="/meals/new" className="block group">
@@ -100,10 +138,10 @@ export default function Home() {
                             <span className="font-bold">食事を記録</span>
                         </div>
                     </Link>
-                    <Link href="/meals" className="block group">
+                    <Link href="/days" className="block group">
                         <div className="bg-white text-gray-700 border border-gray-200 p-4 rounded-xl hover:bg-gray-50 transition-all active:scale-95 text-center">
-                            <span className="block text-2xl mb-1">📋</span>
-                            <span className="font-bold">履歴を見る</span>
+                            <span className="block text-2xl mb-1">📅</span>
+                            <span className="font-bold">日付一覧</span>
                         </div>
                     </Link>
                 </nav>
