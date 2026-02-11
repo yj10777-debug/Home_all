@@ -21,11 +21,19 @@ type StrongDayData = { workouts: StrongWorkout[]; totals: { workouts: number; se
 
 // ─── ユーティリティ ─────────────────────────────────
 
-function getTargetDates(): string[] {
-  const today = new Date();
+/**
+ * 日付範囲を生成する
+ * @param from 開始日 (YYYY-MM-DD)。省略時は today-3
+ * @param to 終了日 (YYYY-MM-DD)。省略時は today
+ */
+function getTargetDates(from?: string, to?: string): string[] {
+  const endDate = to ? new Date(to + "T00:00:00") : new Date();
+  const startDate = from ? new Date(from + "T00:00:00") : subDays(endDate, 3);
   const dates: string[] = [];
-  for (let i = 0; i <= 3; i++) {
-    dates.push(format(subDays(today, i), "yyyy-MM-dd"));
+  const current = new Date(startDate);
+  while (current <= endDate) {
+    dates.push(format(current, "yyyy-MM-dd"));
+    current.setDate(current.getDate() + 1);
   }
   return dates;
 }
@@ -210,15 +218,17 @@ export function parseStrongFiles(
 
 /**
  * あすけん + Strong データを取得し、DB に upsert する
+ * @param options.from 開始日 (YYYY-MM-DD)。省略時は today-3
+ * @param options.to 終了日 (YYYY-MM-DD)。省略時は today
  */
-export async function syncData(): Promise<{
+export async function syncData(options?: { from?: string; to?: string }): Promise<{
   askenCount: number;
   strongCount: number;
   dayCount: number;
   errors: string[];
 }> {
   const errors: string[] = [];
-  const targetDates = getTargetDates();
+  const targetDates = getTargetDates(options?.from, options?.to);
   const dateRange = new Set(targetDates);
 
   // あすけんデータ取得 → DB に upsert
