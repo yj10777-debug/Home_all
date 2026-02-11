@@ -250,9 +250,16 @@ export async function syncData(): Promise<{
   }
 
   // Strong データ取得 → DB に upsert
+  // Strong データフォルダが存在する場合のみ処理（Railway等では存在しない）
   const strongPath = process.env.STRONG_DATA_PATH || DEFAULT_STRONG_PATH;
-  const { data: strongMap, errors: strongErrors } = parseStrongFiles(strongPath, dateRange);
-  errors.push(...strongErrors);
+  let strongMap = new Map<string, StrongDayData>();
+  if (fs.existsSync(strongPath)) {
+    const { data, errors: strongErrors } = parseStrongFiles(strongPath, dateRange);
+    strongMap = data;
+    errors.push(...strongErrors);
+  } else {
+    console.log(`Strong フォルダが見つかりません（スキップ）: ${strongPath}`);
+  }
 
   let strongCount = 0;
   for (const [dateStr, strongData] of strongMap) {
