@@ -22,9 +22,9 @@ const GOAL_PFC: Readonly<PfcTotals> = {
 };
 
 const PFC_TARGETS = [
-    { key: "protein" as const, label: "P", name: "たんぱく質", color: "bg-purple-500" },
-    { key: "fat" as const, label: "F", name: "脂質", color: "bg-amber-500" },
-    { key: "carbs" as const, label: "C", name: "炭水化物", color: "bg-blue-500" },
+    { key: "protein" as const, label: "P", name: "たんぱく質", color: "#8B5CF6", bgColor: "bg-violet-500", lightBg: "bg-violet-50", textColor: "text-violet-600" },
+    { key: "fat" as const, label: "F", name: "脂質", color: "#F59E0B", bgColor: "bg-amber-500", lightBg: "bg-amber-50", textColor: "text-amber-600" },
+    { key: "carbs" as const, label: "C", name: "炭水化物", color: "#3B82F6", bgColor: "bg-blue-500", lightBg: "bg-blue-50", textColor: "text-blue-600" },
 ] as const;
 
 /** コピー成功時のフィードバック表示用の型 */
@@ -187,6 +187,7 @@ export default function Home() {
 
     const remaining = Math.max(0, GOAL_CALORIES - todayCalories);
     const progress = Math.min(100, (todayCalories / GOAL_CALORIES) * 100);
+    const isOverGoal = todayCalories > GOAL_CALORIES;
 
     /** コピーボタンのラベルを返す */
     const getCopyButtonLabel = (state: CopyState, defaultLabel: string): string => {
@@ -198,176 +199,312 @@ export default function Home() {
         }
     };
 
+    /** 円グラフ風のSVGリングコンポーネント */
+    const CalorieRing = () => {
+        const size = 180;
+        const strokeWidth = 14;
+        const radius = (size - strokeWidth) / 2;
+        const circumference = 2 * Math.PI * radius;
+        const offset = circumference - (progress / 100) * circumference;
+
+        return (
+            <div className="relative inline-flex items-center justify-center">
+                <svg width={size} height={size} className="-rotate-90">
+                    {/* 背景リング */}
+                    <circle
+                        cx={size / 2}
+                        cy={size / 2}
+                        r={radius}
+                        fill="none"
+                        stroke="#F3F4F6"
+                        strokeWidth={strokeWidth}
+                    />
+                    {/* 進捗リング */}
+                    <circle
+                        cx={size / 2}
+                        cy={size / 2}
+                        r={radius}
+                        fill="none"
+                        stroke={isOverGoal ? "#EF4444" : "#10B981"}
+                        strokeWidth={strokeWidth}
+                        strokeLinecap="round"
+                        strokeDasharray={circumference}
+                        strokeDashoffset={offset}
+                        className="transition-all duration-700 ease-out"
+                    />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-3xl font-bold text-gray-900">{todayCalories.toLocaleString()}</span>
+                    <span className="text-xs text-gray-400 mt-0.5">/ {GOAL_CALORIES.toLocaleString()} kcal</span>
+                </div>
+            </div>
+        );
+    };
+
     return (
         <div className="min-h-screen bg-gray-50 font-sans text-gray-900">
             <Head>
-                <title>Nutrition App</title>
+                <title>Nutrition Tracker</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1" />
             </Head>
 
-            <header className="bg-white shadow-sm sticky top-0 z-10">
-                <div className="max-w-md mx-auto px-4 py-4 flex justify-between items-center">
-                    <h1 className="text-xl font-bold text-gray-800">Nutrition App</h1>
-                    <div className="text-sm text-gray-500">
-                        Today
+            {/* ヘッダー */}
+            <header className="bg-white border-b border-gray-200 sticky top-0 z-20">
+                <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-lg flex items-center justify-center">
+                            <span className="text-white text-sm font-bold">N</span>
+                        </div>
+                        <h1 className="text-xl font-bold text-gray-900">Nutrition Tracker</h1>
                     </div>
+                    <nav className="flex items-center gap-6">
+                        <Link href="/days" className="text-sm text-gray-500 hover:text-gray-900 transition-colors">
+                            履歴
+                        </Link>
+                        <Link href="/meals" className="text-sm text-gray-500 hover:text-gray-900 transition-colors">
+                            食事一覧
+                        </Link>
+                        <Link href="/meals/new" className="text-sm bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors font-medium">
+                            + 食事を記録
+                        </Link>
+                    </nav>
                 </div>
             </header>
 
-            <main className="max-w-md mx-auto px-4 py-6 space-y-6">
-                {/* Summary Card */}
-                <section className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden">
-                    <div className="absolute top-0 left-0 w-full h-1 bg-gray-100">
-                        <div
-                            className={`h-full ${progress > 100 ? 'bg-red-500' : 'bg-green-500'} transition-all duration-500`}
-                            style={{ width: `${progress}%` }}
-                        />
-                    </div>
-                    <div className="flex justify-between items-end mb-2">
-                        <div>
-                            <p className="text-sm text-gray-500 mb-1">今日の摂取カロリー</p>
-                            <div className="flex items-baseline gap-2">
-                                <span className="text-3xl font-bold text-gray-900">{todayCalories}</span>
-                                <span className="text-sm text-gray-500">/ {GOAL_CALORIES} kcal</span>
+            <main className="max-w-7xl mx-auto px-6 py-8">
+                {/* 日付表示 */}
+                <div className="mb-8">
+                    <h2 className="text-2xl font-bold text-gray-900">
+                        {format(new Date(), 'yyyy年M月d日')}
+                    </h2>
+                    <p className="text-sm text-gray-500 mt-1">今日の栄養サマリー</p>
+                </div>
+
+                {/* メイングリッド: 左カラム(カロリー+PFC) + 右カラム(チャート) */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                    {/* 左カラム: カロリーリング + PFC */}
+                    <div className="lg:col-span-1 space-y-6">
+                        {/* カロリーリングカード */}
+                        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">カロリー</h3>
+                                <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+                                    isOverGoal
+                                        ? 'bg-red-50 text-red-600'
+                                        : remaining < 300
+                                            ? 'bg-amber-50 text-amber-600'
+                                            : 'bg-emerald-50 text-emerald-600'
+                                }`}>
+                                    {isOverGoal ? `${todayCalories - GOAL_CALORIES} kcal 超過` : `残り ${remaining} kcal`}
+                                </span>
+                            </div>
+                            <div className="flex justify-center py-2">
+                                <CalorieRing />
+                            </div>
+                            <div className="mt-4 grid grid-cols-3 gap-3 text-center">
+                                <div className="bg-gray-50 rounded-lg py-2">
+                                    <p className="text-xs text-gray-400">目標</p>
+                                    <p className="text-sm font-semibold text-gray-700">{GOAL_CALORIES.toLocaleString()}</p>
+                                </div>
+                                <div className="bg-gray-50 rounded-lg py-2">
+                                    <p className="text-xs text-gray-400">摂取</p>
+                                    <p className="text-sm font-semibold text-gray-700">{todayCalories.toLocaleString()}</p>
+                                </div>
+                                <div className="bg-gray-50 rounded-lg py-2">
+                                    <p className="text-xs text-gray-400">残り</p>
+                                    <p className={`text-sm font-semibold ${isOverGoal ? 'text-red-600' : 'text-emerald-600'}`}>
+                                        {isOverGoal ? `-${(todayCalories - GOAL_CALORIES).toLocaleString()}` : remaining.toLocaleString()}
+                                    </p>
+                                </div>
                             </div>
                         </div>
-                        <div className="text-right">
-                            <p className="text-xs text-gray-400">あと</p>
-                            <p className={`text-xl font-bold ${remaining < 200 ? 'text-red-500' : 'text-green-600'}`}>
-                                {remaining} kcal
-                            </p>
+
+                        {/* PFC カード */}
+                        <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                            <div className="flex items-center justify-between mb-5">
+                                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">PFCバランス</h3>
+                                {!hasPfcData && (
+                                    <span className="text-xs text-gray-400">データ未取得</span>
+                                )}
+                            </div>
+                            <div className="space-y-5">
+                                {PFC_TARGETS.map((target) => {
+                                    const actual = todayPfc[target.key];
+                                    const goal = GOAL_PFC[target.key];
+                                    const pct = hasPfcData && goal > 0 ? Math.min(100, (actual / goal) * 100) : 0;
+                                    const remaining = Math.max(0, goal - actual);
+                                    return (
+                                        <div key={target.key}>
+                                            <div className="flex items-center justify-between mb-1.5">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`inline-flex items-center justify-center w-6 h-6 rounded-md text-white text-xs font-bold ${target.bgColor}`}>
+                                                        {target.label}
+                                                    </span>
+                                                    <span className="text-sm text-gray-600">{target.name}</span>
+                                                </div>
+                                                <div className="text-right">
+                                                    <span className="text-sm font-semibold text-gray-900">
+                                                        {hasPfcData ? `${Math.round(actual)}g` : "--"}
+                                                    </span>
+                                                    <span className="text-xs text-gray-400 ml-1">/ {goal}g</span>
+                                                </div>
+                                            </div>
+                                            <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                                                <div
+                                                    className={`h-full rounded-full transition-all duration-700 ease-out`}
+                                                    style={{ width: `${pct}%`, backgroundColor: target.color }}
+                                                />
+                                            </div>
+                                            {hasPfcData && remaining > 0 && (
+                                                <p className="text-xs text-gray-400 mt-1">あと {Math.round(remaining)}g</p>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         </div>
                     </div>
-                    <div className="mt-4">
-                        <div className="flex justify-between text-xs text-gray-500 uppercase tracking-wide">
-                            <span>PFCバランス</span>
-                            <span>目標 {GOAL_PFC.protein}/{GOAL_PFC.fat}/{GOAL_PFC.carbs} g</span>
+
+                    {/* 右カラム: 週間チャート */}
+                    <div className="lg:col-span-2">
+                        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm h-full">
+                            {loading ? (
+                                <div className="h-[400px] w-full bg-gray-100 animate-pulse rounded-2xl" />
+                            ) : (
+                                <WeeklyCaloriesChart data={weeklyData} goal={GOAL_CALORIES} />
+                            )}
                         </div>
-                        <div className="mt-3 grid grid-cols-3 gap-2">
-                            {PFC_TARGETS.map((target) => {
-                                const actual = todayPfc[target.key];
-                                const goal = GOAL_PFC[target.key];
-                                const progressWidth = hasPfcData && goal > 0 ? Math.min(100, (actual / goal) * 100) : 0;
-                                return (
-                                    <div key={target.key} className="bg-gray-50 p-3 rounded-xl border border-gray-100">
-                                        <div className="flex justify-between text-xs text-gray-500">
-                                            <span>{target.label}</span>
-                                            <span>{GOAL_PFC[target.key]}g</span>
-                                        </div>
-                                        <div className="mt-1 flex items-baseline gap-1">
-                                            <span className="text-lg font-semibold text-gray-900">
-                                                {hasPfcData ? Math.round(actual) : "--"}
-                                            </span>
-                                            <span className="text-xs text-gray-500">g</span>
-                                        </div>
-                                        <p className="text-[10px] text-gray-400 mt-0.5">{target.name}</p>
-                                        <div className="h-1.5 bg-white rounded-full mt-2 overflow-hidden">
-                                            <div
-                                                className={`h-full ${target.color} transition-all duration-500`}
-                                                style={{ width: `${progressWidth}%` }}
-                                            />
-                                        </div>
+                    </div>
+                </div>
+
+                {/* 下段グリッド: データ同期 + AI評価 */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* データ同期カード */}
+                    <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center">
+                                <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 className="font-semibold text-gray-900">データ同期</h3>
+                                <p className="text-xs text-gray-500">あすけん・Strong のデータを取得</p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={handleSync}
+                            disabled={syncing}
+                            className="w-full py-3 px-4 bg-emerald-600 text-white font-semibold rounded-xl hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                        >
+                            {syncing && (
+                                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                </svg>
+                            )}
+                            {syncing ? "取得中..." : "今日までのデータを同期"}
+                        </button>
+                        {syncResult && (
+                            <div className="mt-4 bg-gray-50 rounded-lg p-3">
+                                <div className="flex items-center gap-4 text-sm">
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="w-2 h-2 bg-emerald-400 rounded-full" />
+                                        <span className="text-gray-600">あすけん: <span className="font-medium">{syncResult.askenCount}日</span></span>
                                     </div>
-                                );
-                            })}
-                        </div>
-                        {!hasPfcData && (
-                            <p className="mt-2 text-xs text-gray-400">PFCデータが未取得です。同期後に表示されます。</p>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="w-2 h-2 bg-blue-400 rounded-full" />
+                                        <span className="text-gray-600">Strong: <span className="font-medium">{syncResult.strongCount}日</span></span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="w-2 h-2 bg-violet-400 rounded-full" />
+                                        <span className="text-gray-600">統合: <span className="font-medium">{syncResult.dayCount}件</span></span>
+                                    </div>
+                                </div>
+                                {syncResult.errors.length > 0 && (
+                                    <p className="mt-2 text-xs text-amber-600 bg-amber-50 rounded-md p-2">
+                                        {syncResult.errors.join(" / ")}
+                                    </p>
+                                )}
+                            </div>
                         )}
                     </div>
-                </section>
 
-                {/* Dashboard Chart */}
-                <section>
-                    {loading ? (
-                        <div className="h-[300px] w-full bg-gray-200 animate-pulse rounded-xl"></div>
-                    ) : (
-                        <WeeklyCaloriesChart data={weeklyData} goal={GOAL_CALORIES} />
-                    )}
-                </section>
+                    {/* Gem AI 評価カード */}
+                    <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center">
+                                <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 className="font-semibold text-gray-900">Gem AI 評価</h3>
+                                <p className="text-xs text-gray-500">プロンプトをコピーして Gem に貼り付け</p>
+                            </div>
+                        </div>
 
-                {/* データ取得 */}
-                <section className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 space-y-3">
-                    <button
-                        onClick={handleSync}
-                        disabled={syncing}
-                        className="w-full py-3 px-4 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
-                    >
-                        {syncing ? "取得中..." : "データを取得（あすけん・Strong 今日まで）"}
-                    </button>
-                    {syncResult && (
-                        <p className="mt-2 text-sm text-gray-600">
-                            あすけん: {syncResult.askenCount}日分 / Strong: {syncResult.strongCount}日分 / day統合: {syncResult.dayCount}件
-                            {syncResult.errors.length > 0 && (
-                                <span className="block text-amber-600 mt-1">{syncResult.errors.join(" ")}</span>
-                            )}
+                        <div className="grid grid-cols-2 gap-3">
+                            <button
+                                onClick={() => handleCopyPrompt("daily")}
+                                disabled={dailyCopyState === "loading"}
+                                className={`py-3 px-4 font-semibold rounded-xl transition-all active:scale-[0.98] text-sm flex items-center justify-center gap-2 ${
+                                    dailyCopyState === "copied"
+                                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                        : dailyCopyState === "error"
+                                            ? "bg-red-50 text-red-700 border border-red-200"
+                                            : "bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                }`}
+                            >
+                                {dailyCopyState === "loading" && (
+                                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                    </svg>
+                                )}
+                                {dailyCopyState === "copied" && (
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                )}
+                                {getCopyButtonLabel(dailyCopyState, "今日の食事評価")}
+                            </button>
+
+                            <button
+                                onClick={() => handleCopyPrompt("weekly")}
+                                disabled={weeklyCopyState === "loading"}
+                                className={`py-3 px-4 font-semibold rounded-xl transition-all active:scale-[0.98] text-sm flex items-center justify-center gap-2 ${
+                                    weeklyCopyState === "copied"
+                                        ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                        : weeklyCopyState === "error"
+                                            ? "bg-red-50 text-red-700 border border-red-200"
+                                            : "bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                }`}
+                            >
+                                {weeklyCopyState === "loading" && (
+                                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                    </svg>
+                                )}
+                                {weeklyCopyState === "copied" && (
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                )}
+                                {getCopyButtonLabel(weeklyCopyState, "週次まとめ")}
+                            </button>
+                        </div>
+
+                        {copyError && (
+                            <p className="mt-3 text-xs text-red-500 bg-red-50 rounded-lg p-2">{copyError}</p>
+                        )}
+
+                        <p className="mt-4 text-xs text-gray-400 leading-relaxed">
+                            コピー後 → Gemini の「栄養トレーナー」Gem を開く → 貼り付けて送信
                         </p>
-                    )}
-                </section>
-
-                {/* Gem 用プロンプトコピー */}
-                <section className="bg-white p-5 rounded-2xl shadow-sm border border-indigo-100">
-                    <div className="flex items-center gap-2 mb-3">
-                        <span className="text-lg">&#x2728;</span>
-                        <h2 className="font-bold text-gray-800">Gem AI 評価</h2>
                     </div>
-                    <p className="text-xs text-gray-500 mb-4">
-                        プロンプトをコピーして Gemini の専用 Gem に貼り付けてください
-                    </p>
-
-                    <div className="space-y-2">
-                        <button
-                            onClick={() => handleCopyPrompt("daily")}
-                            disabled={dailyCopyState === "loading"}
-                            className={`w-full py-3 px-4 font-bold rounded-xl transition-all active:scale-[0.98] text-sm ${
-                                dailyCopyState === "copied"
-                                    ? "bg-green-100 text-green-700 border border-green-300"
-                                    : dailyCopyState === "error"
-                                        ? "bg-red-100 text-red-700 border border-red-300"
-                                        : "bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                            }`}
-                        >
-                            {getCopyButtonLabel(dailyCopyState, "今日の食事評価プロンプトをコピー")}
-                        </button>
-
-                        <button
-                            onClick={() => handleCopyPrompt("weekly")}
-                            disabled={weeklyCopyState === "loading"}
-                            className={`w-full py-3 px-4 font-bold rounded-xl transition-all active:scale-[0.98] text-sm ${
-                                weeklyCopyState === "copied"
-                                    ? "bg-green-100 text-green-700 border border-green-300"
-                                    : weeklyCopyState === "error"
-                                        ? "bg-red-100 text-red-700 border border-red-300"
-                                        : "bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                            }`}
-                        >
-                            {getCopyButtonLabel(weeklyCopyState, "週次まとめプロンプトをコピー")}
-                        </button>
-                    </div>
-
-                    {copyError && (
-                        <p className="mt-2 text-xs text-red-500">{copyError}</p>
-                    )}
-
-                    <p className="mt-3 text-[10px] text-gray-400 leading-relaxed">
-                        コピー後 → Gemini の「栄養トレーナー」Gem を開く → 貼り付けて送信
-                    </p>
-                </section>
-
-                {/* Quick Actions */}
-                <nav className="grid grid-cols-2 gap-4">
-                    <Link href="/meals/new" className="block group">
-                        <div className="bg-blue-600 text-white p-4 rounded-xl shadow-lg shadow-blue-200 hover:shadow-blue-300 transition-all active:scale-95 text-center">
-                            <span className="block text-2xl mb-1">&#x270F;&#xFE0F;</span>
-                            <span className="font-bold">食事を記録</span>
-                        </div>
-                    </Link>
-                    <Link href="/days" className="block group">
-                        <div className="bg-white text-gray-700 border border-gray-200 p-4 rounded-xl hover:bg-gray-50 transition-all active:scale-95 text-center">
-                            <span className="block text-2xl mb-1">&#x1F4C5;</span>
-                            <span className="font-bold">日付一覧</span>
-                        </div>
-                    </Link>
-                </nav>
+                </div>
             </main>
         </div>
     );
