@@ -6,17 +6,19 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
-  let auth: { userId: string } | null;
+  let userId: string;
   try {
-    auth = await getUserIdFromRequest(req);
-  } catch (e) {
+    userId = getUserIdFromRequest(req);
+  } catch (e: any) {
+    if (e.message === 'UNAUTHORIZED') {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
     console.error(e);
     return res.status(500).json({ error: 'Server configuration error' });
   }
-  if (!auth) {
+  if (!userId) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
-  const { userId } = auth;
 
   if (req.method !== 'DELETE') {
     res.setHeader('Allow', ['DELETE']);

@@ -1,24 +1,25 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import fs from "fs";
-import path from "path";
+import { prisma } from "../../../lib/prisma";
 
-const SECRETS_DIR = path.join(process.cwd(), "secrets");
-
-export default function handler(req: NextApiRequest, res: NextApiResponse) {
+/**
+ * 日付一覧取得エンドポイント
+ * GET /api/days — DB に登録されている全日付を返す
+ */
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
     res.setHeader("Allow", ["GET"]);
     return res.status(405).json({ error: "Method Not Allowed" });
   }
 
-  if (!fs.existsSync(SECRETS_DIR)) {
-    return res.status(200).json({ dates: [] });
+  try {
+    const records = await prisma.dailyData.findMany({
+      select: { date: true },
+      orderBy: { date: "desc" },
+    });
+    const dates = records.map((r) => r.date);
+    return res.status(200).json({ dates });
+  } catch (err) {
+    console.error("GET /api/days error:", err);
+    return res.status(500).json({ error: "Internal Server Error" });
   }
-  const seen = new Set<string>();
-  const files = fs.readdirSync(SECRETS_DIR);
-  for (const f of files) {
-    const m = f.match(/^(?:day|asken-day|strong-day)-(\d{4}-\d{2}-\d{2})\.json$/);
-    if (m) seen.add(m[1]);
-  }
-  const dates = Array.from(seen).sort().reverse();
-  return res.status(200).json({ dates });
 }

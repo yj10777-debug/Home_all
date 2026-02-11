@@ -1,9 +1,10 @@
-import { chromium } from 'playwright';
+import { chromium, BrowserContext } from 'playwright';
 import path from 'path';
 import fs from 'fs';
 
 import { scrapeDay } from './scrapeDay';
 import { scrapeAdviceNutrients, AdviceMealType } from './scrapeAdvice';
+import { autoLogin, isSessionLikelyValid } from './login';
 import type { DayResult } from './types';
 
 const PROJECT_ROOT = process.cwd();
@@ -18,13 +19,9 @@ function todayStr() {
     return `${y}-${m}-${d}`;
 }
 
-
-// Helper to normalize nutrient strings
+/** 栄養素の文字列を正規化する */
 function normalizeValue(val: string): string {
-    // 1. Remove all whitespace
     let s = val.replace(/\s+/g, '');
-    // 2. Unify microgram units to 'µg' (Micro Sign U+00B5)
-    // Handle 'ug', 'μg' (Greek Mu U+03BC) -> 'µg'
     s = s.replace(/ug/gi, 'µg').replace(/μg/g, 'µg');
     return s;
 }
@@ -37,21 +34,70 @@ function normalizeNutrients(record: Record<string, string>): Record<string, stri
     return out;
 }
 
+/**
+ * セッションの有効性を実際にページアクセスして確認する
+ * @returns ログインページにリダイレクトされなければ true
+ */
+async function verifySession(context: BrowserContext, dateStr: string): Promise<boolean> {
+    const page = await context.newPage();
+    try {
+        const url = `https://www.asken.jp/wsp/comment/${dateStr}`;
+        await page.goto(url, { waitUntil: 'networkidle', timeout: 15000 });
+        return !page.url().includes('login');
+    } catch {
+        return false;
+    } finally {
+        await page.close();
+    }
+}
+
+/**
+ * あすけんのスクレイピングを実行する
+ * セッション切れの場合は自動で再ログインしてリトライする
+ */
 async function run() {
     const targetDate = process.argv[2] || todayStr();
-    // Output JSON strictly to stdout if needed, but we also logs "Running..." 
-    // The user output requirement is effectively satisfied by console.log at the end.
+    const headless = process.env.HEADLESS === 'true';
+
+    // セッションファイルが古い or 存在しない場合は事前にログイン
+    if (!isSessionLikelyValid()) {
+        console.log("セッションが無効です。自動ログインを実行します...");
+        await autoLogin({ headless });
+    }
 
     if (!fs.existsSync(STATE_FILE)) {
         console.error(`State file not found: ${STATE_FILE}`);
-        console.error(`Run: npx tsx scripts/asken/login.ts`);
+        console.error("自動ログインに失敗しました。ASKEN_EMAIL / ASKEN_PASSWORD を確認してください。");
         process.exit(1);
     }
 
-    const browser = await chromium.launch({ headless: false });
-    const context = await browser.newContext({ storageState: STATE_FILE });
+    let browser = await chromium.launch({ headless });
+    let context = await browser.newContext({ storageState: STATE_FILE });
 
     try {
+        // セッションの有効性を実際に確認
+        const isValid = await verifySession(context, targetDate);
+
+        if (!isValid) {
+            // セッション切れ → 再ログイン
+            console.log("セッションが切れています。再ログインします...");
+            await context.close();
+            await browser.close();
+
+            await autoLogin({ headless });
+
+            // 新しいセッションでブラウザを再起動
+            browser = await chromium.launch({ headless });
+            context = await browser.newContext({ storageState: STATE_FILE });
+
+            // 再ログイン後も失敗する場合はエラー
+            const retryValid = await verifySession(context, targetDate);
+            if (!retryValid) {
+                throw new Error("再ログイン後もセッションが無効です。認証情報を確認してください。");
+            }
+        }
+
+        // スクレイピング実行
         const items = await scrapeDay(targetDate, context);
 
         const getNutrients = async (mealType: AdviceMealType) => {
@@ -77,23 +123,14 @@ async function run() {
             },
         };
 
-        const jsonOutput = JSON.stringify(result, null, 2);
+        // stdout に出力
+        console.log(JSON.stringify(result, null, 2));
 
-        // Output to stdout
-        console.log(jsonOutput);
-
-        // Save to file
-        const outFile = path.join(SECRETS_DIR, `asken-day-${targetDate}.json`);
-
+        // ファイルに保存
         fs.mkdirSync(SECRETS_DIR, { recursive: true });
-        fs.writeFileSync(
-            outFile,
-            JSON.stringify(result, null, 2),
-            'utf-8'
-        );
-
+        const outFile = path.join(SECRETS_DIR, `asken-day-${targetDate}.json`);
+        fs.writeFileSync(outFile, JSON.stringify(result, null, 2), 'utf-8');
         console.log(`Saved: ${outFile}`);
-
 
     } catch (e) {
         console.error('Fatal Error:', e);

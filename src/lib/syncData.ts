@@ -1,8 +1,80 @@
 import fs from "fs";
 import path from "path";
+import { spawn } from "child_process";
+import { format, subDays } from "date-fns";
+import { prisma } from "./prisma";
 
 const SECRETS_DIR = path.join(process.cwd(), "secrets");
 const DEFAULT_STRONG_PATH = "G:\\マイドライブ\\30_Home\\00_Training";
+const ASKEN_STATE_FILE = path.join(SECRETS_DIR, "asken-state.json");
+
+// ─── 型定義 ─────────────────────────────────────────
+
+type AskenItem = { mealType: string; name: string; amount: string; calories: number };
+type AskenNutrients = Record<string, Record<string, string>>;
+type AskenDayResult = { date: string; items: AskenItem[]; nutrients: Partial<Record<string, Record<string, string>>> };
+
+type StrongExercise = { name: string; sets: number; volumeKg: number };
+type StrongWorkout = { title: string; totals: { sets: number; reps: number; volumeKg: number }; exercises: StrongExercise[] };
+type StrongDayData = { workouts: StrongWorkout[]; totals: { workouts: number; sets: number; volumeKg: number } };
+
+// ─── ユーティリティ ─────────────────────────────────
+
+function getTargetDates(): string[] {
+  const today = new Date();
+  const dates: string[] = [];
+  for (let i = 0; i <= 3; i++) {
+    dates.push(format(subDays(today, i), "yyyy-MM-dd"));
+  }
+  return dates;
+}
+
+/**
+ * あすけんスクレイピングを子プロセスで実行し、結果を返す
+ * 成功時は stdout の JSON をパースして返す
+ */
+function runAskenForDate(dateStr: string): Promise<{ ok: boolean; data?: AskenDayResult; error?: string }> {
+  return new Promise((resolve) => {
+    if (!process.env.ASKEN_EMAIL || !process.env.ASKEN_PASSWORD) {
+      if (!fs.existsSync(ASKEN_STATE_FILE)) {
+        resolve({ ok: false, error: "ASKEN_EMAIL / ASKEN_PASSWORD が未設定で、asken-state.json もありません。" });
+        return;
+      }
+    }
+    const proc = spawn("npx", ["tsx", "scripts/asken/run.ts", dateStr], {
+      cwd: process.cwd(),
+      env: { ...process.env, HEADLESS: "true" },
+      stdio: ["ignore", "pipe", "pipe"],
+      shell: true,
+    });
+    let stdout = "";
+    let stderr = "";
+    proc.stdout?.on("data", (d) => { stdout += d.toString(); });
+    proc.stderr?.on("data", (d) => { stderr += d.toString(); });
+    proc.on("close", (code) => {
+      if (code !== 0) {
+        resolve({ ok: false, error: stderr || `exit ${code}` });
+        return;
+      }
+      // stdout から JSON をパース（run.ts は JSON + "Saved: ..." を出力する）
+      try {
+        // 最初の有効な JSON ブロックを抽出
+        const jsonMatch = stdout.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const data = JSON.parse(jsonMatch[0]) as AskenDayResult;
+          resolve({ ok: true, data });
+        } else {
+          resolve({ ok: true }); // JSON なしでも成功扱い
+        }
+      } catch {
+        resolve({ ok: true }); // パース失敗でも scrape 自体は成功
+      }
+    });
+    proc.on("error", (e) => resolve({ ok: false, error: String(e) }));
+  });
+}
+
+// ─── Strong パーサー ────────────────────────────────
 
 function parseDate(line: string): string | null {
   const m = line.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
@@ -48,19 +120,28 @@ function parseTxtFile(filePath: string): { date: string; workoutName: string; ex
   return { date: dateStr, workoutName, exercises };
 }
 
-export function parseStrongFromFolder(dirPath: string): { strongCount: number; errors: string[] } {
+/**
+ * Strong テキストファイルからワークアウトデータをパースする
+ * @returns 日付ごとの StrongDayData マップ
+ */
+export function parseStrongFiles(
+  dirPath: string,
+  dateRange?: Set<string>
+): { data: Map<string, StrongDayData>; errors: string[] } {
   const errors: string[] = [];
+  const byDate = new Map<string, { workoutName: string; exercises: { name: string; weight: number; reps: number }[] }[]>();
+
   if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory()) {
-    return { strongCount: 0, errors: [`フォルダが見つかりません: ${dirPath}`] };
+    return { data: new Map(), errors: [`フォルダが見つかりません: ${dirPath}`] };
   }
 
-  const byDate = new Map<string, { workoutName: string; exercises: { name: string; weight: number; reps: number }[] }[]>();
   const files = fs.readdirSync(dirPath).filter((f) => f.endsWith(".txt"));
 
   for (const f of files) {
     try {
       const parsed = parseTxtFile(path.join(dirPath, f));
       if (!parsed) continue;
+      if (dateRange && !dateRange.has(parsed.date)) continue;
       if (!byDate.has(parsed.date)) byDate.set(parsed.date, []);
       byDate.get(parsed.date)!.push({ workoutName: parsed.workoutName, exercises: parsed.exercises });
     } catch (e) {
@@ -68,10 +149,10 @@ export function parseStrongFromFolder(dirPath: string): { strongCount: number; e
     }
   }
 
-  fs.mkdirSync(SECRETS_DIR, { recursive: true });
-
+  // ワークアウトデータを構造化
+  const result = new Map<string, StrongDayData>();
   for (const [dateStr, workoutList] of byDate) {
-    const workouts: { title: string; totals: { sets: number; reps: number; volumeKg: number }; exercises: { name: string; sets: number; volumeKg: number }[] }[] = [];
+    const workouts: StrongWorkout[] = [];
     for (const w of workoutList) {
       const byExercise = new Map<string, { sets: number; volumeKg: number }>();
       for (const e of w.exercises) {
@@ -93,45 +174,106 @@ export function parseStrongFromFolder(dirPath: string): { strongCount: number; e
       });
     }
     const totalVolume = workouts.reduce((s, w) => s + w.totals.volumeKg, 0);
-    const dayData = {
-      date: dateStr,
+    result.set(dateStr, {
       workouts,
       totals: { workouts: workouts.length, sets: workouts.reduce((s, w) => s + w.totals.sets, 0), volumeKg: Math.round(totalVolume * 10) / 10 },
-    };
-    fs.writeFileSync(path.join(SECRETS_DIR, `strong-day-${dateStr}.json`), JSON.stringify(dayData, null, 2), "utf-8");
+    });
   }
 
-  return { strongCount: byDate.size, errors };
+  return { data: result, errors };
 }
 
-export function buildDayFiles(): { dayCount: number } {
-  if (!fs.existsSync(SECRETS_DIR)) return { dayCount: 0 };
-  const files = fs.readdirSync(SECRETS_DIR);
-  const seen = new Set<string>();
-  for (const f of files) {
-    const m = f.match(/^asken-day-(\d{4}-\d{2}-\d{2})\.json$/);
-    if (m) seen.add(m[1]);
-  }
-  for (const f of files) {
-    const m = f.match(/^strong-day-(\d{4}-\d{2}-\d{2})\.json$/);
-    if (m) seen.add(m[1]);
+// ─── メイン同期処理 ─────────────────────────────────
+
+/**
+ * あすけん + Strong データを取得し、DB に upsert する
+ */
+export async function syncData(): Promise<{
+  askenCount: number;
+  strongCount: number;
+  dayCount: number;
+  errors: string[];
+}> {
+  const errors: string[] = [];
+  const targetDates = getTargetDates();
+  const dateRange = new Set(targetDates);
+
+  // あすけんデータ取得 → DB に upsert
+  let askenCount = 0;
+  for (const d of targetDates) {
+    const result = await runAskenForDate(d);
+    if (result.ok && result.data) {
+      try {
+        await prisma.dailyData.upsert({
+          where: { date: d },
+          update: {
+            askenItems: result.data.items as unknown as Record<string, unknown>[],
+            askenNutrients: result.data.nutrients as unknown as Record<string, unknown>,
+          },
+          create: {
+            date: d,
+            askenItems: result.data.items as unknown as Record<string, unknown>[],
+            askenNutrients: result.data.nutrients as unknown as Record<string, unknown>,
+          },
+        });
+        askenCount += 1;
+      } catch (e) {
+        errors.push(`DB保存 Asken ${d}: ${String(e)}`);
+      }
+    } else if (result.ok) {
+      // stdout パースできなかった場合は JSON ファイルからフォールバック
+      const jsonPath = path.join(SECRETS_DIR, `asken-day-${d}.json`);
+      if (fs.existsSync(jsonPath)) {
+        try {
+          const fileData = JSON.parse(fs.readFileSync(jsonPath, "utf-8")) as AskenDayResult;
+          await prisma.dailyData.upsert({
+            where: { date: d },
+            update: {
+              askenItems: fileData.items as unknown as Record<string, unknown>[],
+              askenNutrients: fileData.nutrients as unknown as Record<string, unknown>,
+            },
+            create: {
+              date: d,
+              askenItems: fileData.items as unknown as Record<string, unknown>[],
+              askenNutrients: fileData.nutrients as unknown as Record<string, unknown>,
+            },
+          });
+          askenCount += 1;
+        } catch (e) {
+          errors.push(`DB保存 Asken(file) ${d}: ${String(e)}`);
+        }
+      }
+    } else if (result.error) {
+      errors.push(`Asken ${d}: ${result.error}`);
+    }
   }
 
-  const dates = Array.from(seen).sort();
-  for (const d of dates) {
-    const dayData: Record<string, unknown> = { date: d };
-    const askenPath = path.join(SECRETS_DIR, `asken-day-${d}.json`);
-    const strongPath = path.join(SECRETS_DIR, `strong-day-${d}.json`);
-    if (fs.existsSync(askenPath)) dayData.asken = JSON.parse(fs.readFileSync(askenPath, "utf-8"));
-    if (fs.existsSync(strongPath)) dayData.strong = JSON.parse(fs.readFileSync(strongPath, "utf-8"));
-    fs.writeFileSync(path.join(SECRETS_DIR, `day-${d}.json`), JSON.stringify(dayData, null, 2), "utf-8");
-  }
-  return { dayCount: dates.length };
-}
-
-export function syncData(): { strongCount: number; dayCount: number; errors: string[] } {
+  // Strong データ取得 → DB に upsert
   const strongPath = process.env.STRONG_TRAINING_PATH || DEFAULT_STRONG_PATH;
-  const { strongCount, errors } = parseStrongFromFolder(strongPath);
-  const { dayCount } = buildDayFiles();
-  return { strongCount, dayCount, errors };
+  const { data: strongMap, errors: strongErrors } = parseStrongFiles(strongPath, dateRange);
+  errors.push(...strongErrors);
+
+  let strongCount = 0;
+  for (const [dateStr, strongData] of strongMap) {
+    try {
+      await prisma.dailyData.upsert({
+        where: { date: dateStr },
+        update: {
+          strongData: strongData as unknown as Record<string, unknown>,
+        },
+        create: {
+          date: dateStr,
+          strongData: strongData as unknown as Record<string, unknown>,
+        },
+      });
+      strongCount += 1;
+    } catch (e) {
+      errors.push(`DB保存 Strong ${dateStr}: ${String(e)}`);
+    }
+  }
+
+  // dayCount = DB の DailyData レコード数
+  const dayCount = await prisma.dailyData.count();
+
+  return { askenCount, strongCount, dayCount, errors };
 }

@@ -55,3 +55,22 @@ model MealItem {
 
   @@index([mealId])
 }
+
+/// あすけん・Strong の日次データを統合して保存するテーブル
+model DailyData {
+  id        String   @id @default(cuid())
+  date      String   @unique  // YYYY-MM-DD
+  
+  /// あすけんの食事アイテム (JSON配列)
+  askenItems     Json?  // [{ mealType, name, amount, calories }]
+  /// あすけんの栄養素データ (JSON: { 朝食: { エネルギー: "500kcal", ... }, ... })
+  askenNutrients Json?  // Record<string, Record<string, string>>
+  
+  /// Strong 筋トレデータ (JSON)
+  strongData     Json?  // { workouts: [...], totals: { ... } }
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([date])
+}

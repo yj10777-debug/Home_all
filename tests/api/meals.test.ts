@@ -33,7 +33,12 @@ jest.mock('@/lib/prisma', () => ({
 
 const mockGetUserIdFromRequest = jest.fn();
 jest.mock('@/lib/auth', () => ({
-  getUserIdFromRequest: (req: NextApiRequest) => mockGetUserIdFromRequest(req),
+  getUserIdFromRequest: (req: NextApiRequest) => {
+    const result = mockGetUserIdFromRequest(req);
+    // 同期関数モック: null の場合は UNAUTHORIZED を throw
+    if (result === null) throw new Error('UNAUTHORIZED');
+    return result;
+  },
 }));
 
 function mockRes(): NextApiResponse & { _status?: number; _body?: unknown; _ended?: boolean } {
@@ -84,7 +89,8 @@ const VALID_PAYLOAD = {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockGetUserIdFromRequest.mockResolvedValue({ userId: TEST_USER });
+  // getUserIdFromRequest は同期関数 — userId 文字列を返す
+  mockGetUserIdFromRequest.mockReturnValue(TEST_USER);
   const consoleSpy = jest.spyOn(console, 'info').mockImplementation(() => {});
   (global as { _consoleInfoRestore?: jest.SpyInstance })._consoleInfoRestore = consoleSpy;
 });
@@ -96,7 +102,7 @@ afterEach(() => {
 
 describe('GET /api/meals', () => {
   it('returns 401 when Authorization header is missing', async () => {
-    mockGetUserIdFromRequest.mockResolvedValueOnce(null);
+    mockGetUserIdFromRequest.mockReturnValueOnce(null);
     const handler = (await import('@/pages/api/meals/index')).default;
     const req = mockReq();
     const res = mockRes();
@@ -156,7 +162,7 @@ describe('GET /api/meals', () => {
 
 describe('POST /api/meals', () => {
   it('returns 401 when not authenticated', async () => {
-    mockGetUserIdFromRequest.mockResolvedValueOnce(null);
+    mockGetUserIdFromRequest.mockReturnValueOnce(null);
     const handler = (await import('@/pages/api/meals/index')).default;
     const req = mockReq({ method: 'POST', body: VALID_PAYLOAD });
     const res = mockRes();
@@ -197,16 +203,8 @@ describe('POST /api/meals', () => {
         { id: 'i2', mealId: 'meal-new-1', name: 'ごはん', cal: 240, amount: 150, unit: 'g', protein: 4, fat: 1, carb: 53 },
       ],
     };
-    mockTransaction.mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) => {
-      const tx = {
-        mealLog: {
-          create: jest.fn().mockResolvedValue({ id: 'meal-new-1', userId: TEST_USER }),
-          findUniqueOrThrow: jest.fn().mockResolvedValue(createdMeal),
-        },
-        mealItem: { createMany: jest.fn().mockResolvedValue({ count: 2 }) },
-      };
-      return fn(tx);
-    });
+    // meals/index.ts は prisma.mealLog.create を直接呼ぶ（$transaction 不使用）
+    mockCreate.mockResolvedValueOnce(createdMeal);
     const handler = (await import('@/pages/api/meals/index')).default;
     const req = mockReq({ method: 'POST', body: VALID_PAYLOAD });
     const res = mockRes();
@@ -219,7 +217,7 @@ describe('POST /api/meals', () => {
 
 describe('DELETE /api/meals/[id]', () => {
   it('returns 401 when not authenticated', async () => {
-    mockGetUserIdFromRequest.mockResolvedValueOnce(null);
+    mockGetUserIdFromRequest.mockReturnValueOnce(null);
     const handler = (await import('@/pages/api/meals/[id]')).default;
     const req = mockReq({ method: 'DELETE', query: { id: 'm1' } });
     const res = mockRes();
