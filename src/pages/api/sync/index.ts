@@ -1,6 +1,11 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { syncData } from "../../../lib/syncData";
 
+/** スクレイピングは時間がかかるためタイムアウトを延長 */
+export const config = {
+  maxDuration: 300, // 5分
+};
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "POST") {
     res.setHeader("Allow", ["POST"]);

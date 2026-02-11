@@ -131,7 +131,10 @@ export default function Home() {
         setSyncing(true);
         setSyncResult(null);
         try {
-            const res = await fetch("/api/sync", { method: "POST" });
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 5 * 60 * 1000); // 5分タイムアウト
+            const res = await fetch("/api/sync", { method: "POST", signal: controller.signal });
+            clearTimeout(timeout);
             const data = await res.json();
             if (res.ok && data.success) {
                 setSyncResult({ askenCount: data.askenCount ?? 0, strongCount: data.strongCount, dayCount: data.dayCount, errors: data.errors || [] });

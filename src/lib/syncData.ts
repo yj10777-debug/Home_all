@@ -6,7 +6,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 
 const SECRETS_DIR = path.join(process.cwd(), "secrets");
-const DEFAULT_STRONG_PATH = "G:\\マイドライブ\\30_Home\\00_Training";
+const DEFAULT_STRONG_PATH = process.env.STRONG_DATA_PATH || "G:\\マイドライブ\\30_Home\\00_Training";
 const ASKEN_STATE_FILE = path.join(SECRETS_DIR, "asken-state.json");
 
 // ─── 型定義 ─────────────────────────────────────────
@@ -250,7 +250,7 @@ export async function syncData(): Promise<{
   }
 
   // Strong データ取得 → DB に upsert
-  const strongPath = process.env.STRONG_TRAINING_PATH || DEFAULT_STRONG_PATH;
+  const strongPath = process.env.STRONG_DATA_PATH || DEFAULT_STRONG_PATH;
   const { data: strongMap, errors: strongErrors } = parseStrongFiles(strongPath, dateRange);
   errors.push(...strongErrors);
 
