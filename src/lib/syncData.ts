@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { spawn } from "child_process";
 import { format, subDays } from "date-fns";
+import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 
 const SECRETS_DIR = path.join(process.cwd(), "secrets");
@@ -207,13 +208,13 @@ export async function syncData(): Promise<{
         await prisma.dailyData.upsert({
           where: { date: d },
           update: {
-            askenItems: result.data.items as unknown as Record<string, unknown>[],
-            askenNutrients: result.data.nutrients as unknown as Record<string, unknown>,
+            askenItems: result.data.items as unknown as Prisma.InputJsonValue,
+            askenNutrients: result.data.nutrients as unknown as Prisma.InputJsonValue,
           },
           create: {
             date: d,
-            askenItems: result.data.items as unknown as Record<string, unknown>[],
-            askenNutrients: result.data.nutrients as unknown as Record<string, unknown>,
+            askenItems: result.data.items as unknown as Prisma.InputJsonValue,
+            askenNutrients: result.data.nutrients as unknown as Prisma.InputJsonValue,
           },
         });
         askenCount += 1;
@@ -229,13 +230,13 @@ export async function syncData(): Promise<{
           await prisma.dailyData.upsert({
             where: { date: d },
             update: {
-              askenItems: fileData.items as unknown as Record<string, unknown>[],
-              askenNutrients: fileData.nutrients as unknown as Record<string, unknown>,
+              askenItems: fileData.items as unknown as Prisma.InputJsonValue,
+              askenNutrients: fileData.nutrients as unknown as Prisma.InputJsonValue,
             },
             create: {
               date: d,
-              askenItems: fileData.items as unknown as Record<string, unknown>[],
-              askenNutrients: fileData.nutrients as unknown as Record<string, unknown>,
+              askenItems: fileData.items as unknown as Prisma.InputJsonValue,
+              askenNutrients: fileData.nutrients as unknown as Prisma.InputJsonValue,
             },
           });
           askenCount += 1;
@@ -259,11 +260,11 @@ export async function syncData(): Promise<{
       await prisma.dailyData.upsert({
         where: { date: dateStr },
         update: {
-          strongData: strongData as unknown as Record<string, unknown>,
+          strongData: strongData as unknown as Prisma.InputJsonValue,
         },
         create: {
           date: dateStr,
-          strongData: strongData as unknown as Record<string, unknown>,
+          strongData: strongData as unknown as Prisma.InputJsonValue,
         },
       });
       strongCount += 1;
