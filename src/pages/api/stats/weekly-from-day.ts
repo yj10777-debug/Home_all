@@ -1,4 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 
 /** 栄養素テキストからカロリー数値を抽出する */
@@ -54,7 +55,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     // あすけんデータがある直近7件を取得
     const records = await prisma.dailyData.findMany({
-      where: { askenNutrients: { not: null } },
+      where: { NOT: { askenNutrients: Prisma.AnyNull } },
       orderBy: { date: "desc" },
       take: 7,
       select: { date: true, askenItems: true, askenNutrients: true },
