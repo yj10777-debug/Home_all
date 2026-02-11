@@ -3,7 +3,6 @@ FROM node:20-slim AS deps
 
 WORKDIR /app
 
-# Playwright がブラウザをダウンロードするための依存
 RUN apt-get update && apt-get install -y \
     openssl \
     && rm -rf /var/lib/apt/lists/*
@@ -68,7 +67,6 @@ RUN apt-get update && apt-get install -y \
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
 # 本番用ファイルのコピー
@@ -78,6 +76,7 @@ COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 
 # スクレイピングスクリプト + Playwright
 COPY --from=builder /app/scripts ./scripts
@@ -94,6 +93,10 @@ RUN npx playwright install chromium
 # secrets ディレクトリ作成（セッションファイル用）
 RUN mkdir -p /app/secrets
 
+# 起動スクリプト
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
 EXPOSE 3000
 
-CMD ["node", "server.js"]
+CMD ["sh", "/app/start.sh"]
