@@ -39,6 +39,11 @@ export default function Home() {
     const [todayPfc, setTodayPfc] = useState<PfcTotals>({ ...INITIAL_PFC });
     const [hasPfcData, setHasPfcData] = useState(false);
 
+    // Strong アップロード関連の state
+    const [strongUploading, setStrongUploading] = useState(false);
+    const [strongResult, setStrongResult] = useState<{ savedDays: number; parsedWorkouts: number; errors: string[] } | null>(null);
+    const [isDragOver, setIsDragOver] = useState(false);
+
     // プロンプトコピー関連の state
     const [dailyCopyState, setDailyCopyState] = useState<CopyState>("idle");
     const [weeklyCopyState, setWeeklyCopyState] = useState<CopyState>("idle");
@@ -147,6 +152,59 @@ export default function Home() {
         } finally {
             setSyncing(false);
         }
+    };
+
+    /** Strong テキストファイルをアップロードする */
+    const handleStrongUpload = async (fileList: FileList | null) => {
+        if (!fileList || fileList.length === 0) return;
+
+        setStrongUploading(true);
+        setStrongResult(null);
+
+        try {
+            const files: { name: string; content: string }[] = [];
+            for (let i = 0; i < fileList.length; i++) {
+                const file = fileList[i];
+                if (!file.name.endsWith('.txt')) continue;
+                const content = await file.text();
+                files.push({ name: file.name, content });
+            }
+
+            if (files.length === 0) {
+                setStrongResult({ savedDays: 0, parsedWorkouts: 0, errors: [".txt ファイルが見つかりませんでした"] });
+                return;
+            }
+
+            const res = await fetch("/api/sync/strong", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ files }),
+            });
+            const data = await res.json();
+
+            if (res.ok && data.success) {
+                setStrongResult({ savedDays: data.savedDays, parsedWorkouts: data.parsedWorkouts, errors: data.errors || [] });
+                await fetchData();
+            } else {
+                setStrongResult({ savedDays: 0, parsedWorkouts: 0, errors: [data.error || "アップロードに失敗しました"] });
+            }
+        } catch (e) {
+            setStrongResult({ savedDays: 0, parsedWorkouts: 0, errors: [String(e)] });
+        } finally {
+            setStrongUploading(false);
+        }
+    };
+
+    /** ドラッグ&ドロップのハンドラ */
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragOver(true);
+    };
+    const handleDragLeave = () => setIsDragOver(false);
+    const handleDrop = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragOver(false);
+        handleStrongUpload(e.dataTransfer.files);
     };
 
     /** プロンプトを取得してクリップボードにコピーする */
@@ -380,8 +438,8 @@ export default function Home() {
                     </div>
                 </div>
 
-                {/* 下段グリッド: データ同期 + AI評価 */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* 下段グリッド: データ同期 + Strong + AI評価 */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* データ同期カード */}
                     <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
                         <div className="flex items-center gap-3 mb-4">
@@ -431,6 +489,79 @@ export default function Home() {
                                 )}
                             </div>
                         )}
+                    </div>
+
+                    {/* Strong アップロードカード */}
+                    <div className="bg-white rounded-2xl border border-gray-200 p-6 shadow-sm">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
+                                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 className="font-semibold text-gray-900">Strong 取り込み</h3>
+                                <p className="text-xs text-gray-500">.txt ファイルをアップロード</p>
+                            </div>
+                        </div>
+
+                        {/* ドラッグ&ドロップエリア */}
+                        <label
+                            onDragOver={handleDragOver}
+                            onDragLeave={handleDragLeave}
+                            onDrop={handleDrop}
+                            className={`block w-full py-6 border-2 border-dashed rounded-xl text-center cursor-pointer transition-all ${
+                                isDragOver
+                                    ? 'border-blue-400 bg-blue-50'
+                                    : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
+                            } ${strongUploading ? 'opacity-50 pointer-events-none' : ''}`}
+                        >
+                            <input
+                                type="file"
+                                accept=".txt"
+                                multiple
+                                className="hidden"
+                                onChange={(e) => handleStrongUpload(e.target.files)}
+                                disabled={strongUploading}
+                            />
+                            {strongUploading ? (
+                                <div className="flex flex-col items-center gap-2">
+                                    <svg className="w-6 h-6 animate-spin text-blue-500" viewBox="0 0 24 24" fill="none">
+                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                    </svg>
+                                    <span className="text-sm text-gray-500">処理中...</span>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col items-center gap-1">
+                                    <svg className="w-8 h-8 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                    </svg>
+                                    <span className="text-sm text-gray-500 mt-1">ドラッグ&ドロップ</span>
+                                    <span className="text-xs text-gray-400">または クリックして選択</span>
+                                </div>
+                            )}
+                        </label>
+
+                        {strongResult && (
+                            <div className="mt-3 bg-gray-50 rounded-lg p-3">
+                                <div className="flex items-center gap-3 text-sm">
+                                    <span className="text-gray-600">
+                                        <span className="font-medium">{strongResult.parsedWorkouts}</span> ワークアウト →
+                                        <span className="font-medium"> {strongResult.savedDays}</span> 日分保存
+                                    </span>
+                                </div>
+                                {strongResult.errors.length > 0 && (
+                                    <p className="mt-1.5 text-xs text-amber-600 bg-amber-50 rounded-md p-2">
+                                        {strongResult.errors.join(" / ")}
+                                    </p>
+                                )}
+                            </div>
+                        )}
+
+                        <p className="mt-3 text-xs text-gray-400 leading-relaxed">
+                            Google Drive の Strong フォルダから .txt を選択
+                        </p>
                     </div>
 
                     {/* Gem AI 評価カード */}

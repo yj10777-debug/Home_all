@@ -94,8 +94,10 @@ function parseSetLine(line: string): { weight: number; reps: number } | null {
   return null;
 }
 
-function parseTxtFile(filePath: string): { date: string; workoutName: string; exercises: { name: string; weight: number; reps: number }[] } | null {
-  const content = fs.readFileSync(filePath, "utf-8");
+/**
+ * テキスト内容から Strong ワークアウトをパースする（APIアップロード用にも使用）
+ */
+export function parseTxtContent(content: string): { date: string; workoutName: string; exercises: { name: string; weight: number; reps: number }[] } | null {
   const lines = content.split(/\r?\n/).map((l) => l.trim());
   let workoutName = "";
   let dateStr: string | null = null;
@@ -121,36 +123,25 @@ function parseTxtFile(filePath: string): { date: string; workoutName: string; ex
   return { date: dateStr, workoutName, exercises };
 }
 
+/** ファイルパスから読み込むラッパー（ローカル同期用） */
+function parseTxtFile(filePath: string) {
+  const content = fs.readFileSync(filePath, "utf-8");
+  return parseTxtContent(content);
+}
+
 /**
- * Strong テキストファイルからワークアウトデータをパースする
- * @returns 日付ごとの StrongDayData マップ
+ * テキスト内容の配列から StrongDayData マップを構築する（アップロード API 用）
  */
-export function parseStrongFiles(
-  dirPath: string,
-  dateRange?: Set<string>
-): { data: Map<string, StrongDayData>; errors: string[] } {
-  const errors: string[] = [];
+export function buildStrongData(
+  parsed: { date: string; workoutName: string; exercises: { name: string; weight: number; reps: number }[] }[]
+): Map<string, StrongDayData> {
   const byDate = new Map<string, { workoutName: string; exercises: { name: string; weight: number; reps: number }[] }[]>();
 
-  if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory()) {
-    return { data: new Map(), errors: [`フォルダが見つかりません: ${dirPath}`] };
+  for (const p of parsed) {
+    if (!byDate.has(p.date)) byDate.set(p.date, []);
+    byDate.get(p.date)!.push({ workoutName: p.workoutName, exercises: p.exercises });
   }
 
-  const files = fs.readdirSync(dirPath).filter((f) => f.endsWith(".txt"));
-
-  for (const f of files) {
-    try {
-      const parsed = parseTxtFile(path.join(dirPath, f));
-      if (!parsed) continue;
-      if (dateRange && !dateRange.has(parsed.date)) continue;
-      if (!byDate.has(parsed.date)) byDate.set(parsed.date, []);
-      byDate.get(parsed.date)!.push({ workoutName: parsed.workoutName, exercises: parsed.exercises });
-    } catch (e) {
-      errors.push(`${f}: ${String(e)}`);
-    }
-  }
-
-  // ワークアウトデータを構造化
   const result = new Map<string, StrongDayData>();
   for (const [dateStr, workoutList] of byDate) {
     const workouts: StrongWorkout[] = [];
@@ -181,7 +172,38 @@ export function parseStrongFiles(
     });
   }
 
-  return { data: result, errors };
+  return result;
+}
+
+/**
+ * Strong テキストファイルからワークアウトデータをパースする（ディレクトリ版）
+ * @returns 日付ごとの StrongDayData マップ
+ */
+export function parseStrongFiles(
+  dirPath: string,
+  dateRange?: Set<string>
+): { data: Map<string, StrongDayData>; errors: string[] } {
+  const errors: string[] = [];
+
+  if (!fs.existsSync(dirPath) || !fs.statSync(dirPath).isDirectory()) {
+    return { data: new Map(), errors: [`フォルダが見つかりません: ${dirPath}`] };
+  }
+
+  const files = fs.readdirSync(dirPath).filter((f) => f.endsWith(".txt"));
+  const allParsed: { date: string; workoutName: string; exercises: { name: string; weight: number; reps: number }[] }[] = [];
+
+  for (const f of files) {
+    try {
+      const parsed = parseTxtFile(path.join(dirPath, f));
+      if (!parsed) continue;
+      if (dateRange && !dateRange.has(parsed.date)) continue;
+      allParsed.push(parsed);
+    } catch (e) {
+      errors.push(`${f}: ${String(e)}`);
+    }
+  }
+
+  return { data: buildStrongData(allParsed), errors };
 }
 
 // ─── メイン同期処理 ─────────────────────────────────
