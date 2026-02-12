@@ -4,6 +4,7 @@ import { spawn } from "child_process";
 import { format, subDays } from "date-fns";
 import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
+import { fetchStrongFilesFromDrive } from "./googleDrive";
 
 const SECRETS_DIR = path.join(process.cwd(), "secrets");
 const DEFAULT_STRONG_PATH = process.env.STRONG_DATA_PATH || "G:\\マイドライブ\\30_Home\\00_Training";
@@ -282,15 +283,42 @@ export async function syncData(options?: { from?: string; to?: string }): Promis
   }
 
   // Strong データ取得 → DB に upsert
-  // Strong データフォルダが存在する場合のみ処理（Railway等では存在しない）
+  // 1) ローカルフォルダがあればそちらから読む
+  // 2) なければ Google Drive API から取得
   const strongPath = process.env.STRONG_DATA_PATH || DEFAULT_STRONG_PATH;
   let strongMap = new Map<string, StrongDayData>();
+
   if (fs.existsSync(strongPath)) {
+    // ローカルフォルダから読み込み
     const { data, errors: strongErrors } = parseStrongFiles(strongPath, dateRange);
     strongMap = data;
     errors.push(...strongErrors);
   } else {
-    console.log(`Strong フォルダが見つかりません（スキップ）: ${strongPath}`);
+    // Google Drive から取得を試みる
+    try {
+      const driveFiles = await fetchStrongFilesFromDrive();
+      if (driveFiles && driveFiles.length > 0) {
+        console.log(`Google Drive: ${driveFiles.length} 件のファイルを取得`);
+        const allParsed: { date: string; workoutName: string; exercises: { name: string; weight: number; reps: number }[] }[] = [];
+        for (const file of driveFiles) {
+          try {
+            const parsed = parseTxtContent(file.content);
+            if (parsed) {
+              if (!dateRange || dateRange.has(parsed.date)) {
+                allParsed.push(parsed);
+              }
+            }
+          } catch (e) {
+            errors.push(`Drive ${file.name}: ${String(e)}`);
+          }
+        }
+        strongMap = buildStrongData(allParsed);
+      } else if (driveFiles === null) {
+        console.log("Google Drive 未設定（Strong スキップ）");
+      }
+    } catch (e) {
+      errors.push(`Google Drive: ${String(e)}`);
+    }
   }
 
   let strongCount = 0;

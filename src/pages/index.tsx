@@ -326,7 +326,7 @@ export default function Home() {
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                     </svg>
                                 </div>
-                                <h3 className="text-sm font-semibold text-gray-900">あすけん同期</h3>
+                                <h3 className="text-sm font-semibold text-gray-900">データ同期</h3>
                             </div>
                             <button onClick={() => setShowDateRange(!showDateRange)} className="text-[10px] text-gray-400 hover:text-gray-600 underline">
                                 {showDateRange ? "閉じる" : "範囲指定"}
@@ -357,7 +357,7 @@ export default function Home() {
                             className="w-full py-2.5 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
                         >
                             {syncing && <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
-                            {syncing ? "取得中..." : showDateRange && syncFrom ? `${syncFrom} 〜 同期` : "直近4日を同期"}
+                            {syncing ? "取得中..." : showDateRange && syncFrom ? `${syncFrom} 〜 同期` : "あすけん + Strong を同期"}
                         </button>
                         {syncResult && (
                             <div className="mt-2 bg-gray-50 rounded-md p-2 text-xs text-gray-600">
@@ -367,7 +367,7 @@ export default function Home() {
                         )}
                     </div>
 
-                    {/* Strong アップロード */}
+                    {/* Strong 取り込み */}
                     <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
                         <div className="flex items-center gap-2 mb-3">
                             <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
@@ -375,23 +375,28 @@ export default function Home() {
                             </div>
                             <h3 className="text-sm font-semibold text-gray-900">Strong 取り込み</h3>
                         </div>
-                        <label
-                            onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
-                            className={`block w-full py-4 border-2 border-dashed rounded-lg text-center cursor-pointer transition-all ${isDragOver ? 'border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-blue-300'} ${strongUploading ? 'opacity-50 pointer-events-none' : ''}`}
-                        >
-                            <input type="file" accept=".txt" multiple className="hidden" onChange={(e) => handleStrongUpload(e.target.files)} disabled={strongUploading} />
-                            {strongUploading ? (
-                                <div className="flex items-center justify-center gap-2">
-                                    <svg className="w-4 h-4 animate-spin text-blue-500" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                        <p className="text-xs text-gray-500 mb-3">
+                            <span className="inline-flex items-center gap-1 text-emerald-600">
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                Google Drive 自動連携
+                            </span>
+                            <span className="text-gray-400 ml-1">— 同期ボタンで自動取得</span>
+                        </p>
+                        {/* フォールバック: 手動アップロード */}
+                        <details className="group">
+                            <summary className="text-[10px] text-gray-400 cursor-pointer hover:text-gray-600">手動アップロード（.txtを直接取り込み）</summary>
+                            <label
+                                onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
+                                className={`mt-2 block w-full py-3 border-2 border-dashed rounded-lg text-center cursor-pointer transition-all ${isDragOver ? 'border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-blue-300'} ${strongUploading ? 'opacity-50 pointer-events-none' : ''}`}
+                            >
+                                <input type="file" accept=".txt" multiple className="hidden" onChange={(e) => handleStrongUpload(e.target.files)} disabled={strongUploading} />
+                                {strongUploading ? (
                                     <span className="text-xs text-gray-500">処理中...</span>
-                                </div>
-                            ) : (
-                                <div>
-                                    <svg className="w-6 h-6 text-gray-300 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
-                                    <span className="text-xs text-gray-500">ドラッグ&ドロップ / クリックで選択</span>
-                                </div>
-                            )}
-                        </label>
+                                ) : (
+                                    <span className="text-xs text-gray-500">ドラッグ&ドロップ / クリック</span>
+                                )}
+                            </label>
+                        </details>
                         {strongResult && (
                             <p className="mt-2 text-xs text-gray-600">{strongResult.parsedWorkouts} ワークアウト → {strongResult.savedDays} 日分保存
                                 {strongResult.errors.length > 0 && <span className="text-amber-600 ml-1">{strongResult.errors.join(" / ")}</span>}
