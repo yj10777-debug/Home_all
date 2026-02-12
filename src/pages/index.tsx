@@ -3,7 +3,8 @@ import Link from 'next/link';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { WeeklyCaloriesChart } from '../components/WeeklyCaloriesChart';
-import { format } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
+import { ja } from 'date-fns/locale';
 
 type WeeklyData = { date: string; calories: number };
 type PfcKey = "protein" | "fat" | "carbs";
@@ -21,25 +22,30 @@ const PFC_TARGETS = [
 
 type CopyState = "idle" | "loading" | "copied" | "error";
 
+/** 同期ステータス */
+type SyncStatus = {
+    lastSync: {
+        timestamp: string;
+        askenCount: number;
+        strongCount: number;
+        dayCount: number;
+        errors: string[];
+    } | null;
+    schedule: string;
+    googleDriveConfigured: boolean;
+    askenConfigured: boolean;
+};
+
 export default function Home() {
     const router = useRouter();
     const [weeklyData, setWeeklyData] = useState<WeeklyData[]>([]);
     const [loading, setLoading] = useState(true);
     const [todayCalories, setTodayCalories] = useState(0);
-    const [syncing, setSyncing] = useState(false);
-    const [syncResult, setSyncResult] = useState<{ askenCount: number; strongCount: number; dayCount: number; errors: string[] } | null>(null);
     const [todayPfc, setTodayPfc] = useState<PfcTotals>({ ...INITIAL_PFC });
     const [hasPfcData, setHasPfcData] = useState(false);
 
-    // 同期日付範囲
-    const [syncFrom, setSyncFrom] = useState('');
-    const [syncTo, setSyncTo] = useState('');
-    const [showDateRange, setShowDateRange] = useState(false);
-
-    // Strong アップロード
-    const [strongUploading, setStrongUploading] = useState(false);
-    const [strongResult, setStrongResult] = useState<{ savedDays: number; parsedWorkouts: number; errors: string[] } | null>(null);
-    const [isDragOver, setIsDragOver] = useState(false);
+    // 同期ステータス
+    const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
 
     // プロンプトコピー
     const [dailyCopyState, setDailyCopyState] = useState<CopyState>("idle");
@@ -101,58 +107,18 @@ export default function Home() {
         finally { setLoading(false); }
     };
 
-    /** 同期実行（日付範囲指定対応） */
-    const handleSync = async (from?: string, to?: string) => {
-        setSyncing(true);
-        setSyncResult(null);
+    /** 同期ステータスを取得 */
+    const fetchSyncStatus = async () => {
         try {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 10 * 60 * 1000);
-            const body: Record<string, string> = {};
-            if (from) body.from = from;
-            if (to) body.to = to;
-            const res = await fetch("/api/sync", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body),
-                signal: controller.signal,
-            });
-            clearTimeout(timeout);
-            const data = await res.json();
-            if (res.ok && data.success) {
-                setSyncResult({ askenCount: data.askenCount ?? 0, strongCount: data.strongCount, dayCount: data.dayCount, errors: data.errors || [] });
-                await fetchData();
-            } else {
-                setSyncResult({ askenCount: 0, strongCount: 0, dayCount: 0, errors: [data.error || "取得に失敗しました"] });
+            const res = await fetch('/api/sync/status');
+            if (res.ok) {
+                const data = await res.json();
+                setSyncStatus(data);
             }
-        } catch (e) {
-            setSyncResult({ askenCount: 0, strongCount: 0, dayCount: 0, errors: [String(e)] });
-        } finally { setSyncing(false); }
+        } catch {
+            // 静かに失敗
+        }
     };
-
-    const handleStrongUpload = async (fileList: FileList | null) => {
-        if (!fileList || fileList.length === 0) return;
-        setStrongUploading(true);
-        setStrongResult(null);
-        try {
-            const files: { name: string; content: string }[] = [];
-            for (let i = 0; i < fileList.length; i++) {
-                const file = fileList[i];
-                if (!file.name.endsWith('.txt')) continue;
-                files.push({ name: file.name, content: await file.text() });
-            }
-            if (files.length === 0) { setStrongResult({ savedDays: 0, parsedWorkouts: 0, errors: [".txt ファイルが見つかりません"] }); return; }
-            const res = await fetch("/api/sync/strong", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ files }) });
-            const data = await res.json();
-            if (res.ok && data.success) { setStrongResult({ savedDays: data.savedDays, parsedWorkouts: data.parsedWorkouts, errors: data.errors || [] }); await fetchData(); }
-            else { setStrongResult({ savedDays: 0, parsedWorkouts: 0, errors: [data.error || "失敗"] }); }
-        } catch (e) { setStrongResult({ savedDays: 0, parsedWorkouts: 0, errors: [String(e)] }); }
-        finally { setStrongUploading(false); }
-    };
-
-    const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); setIsDragOver(true); };
-    const handleDragLeave = () => setIsDragOver(false);
-    const handleDrop = (e: React.DragEvent) => { e.preventDefault(); setIsDragOver(false); handleStrongUpload(e.dataTransfer.files); };
 
     const handleCopyPrompt = useCallback(async (type: "daily" | "weekly") => {
         const setState = type === "daily" ? setDailyCopyState : setWeeklyCopyState;
@@ -179,7 +145,13 @@ export default function Home() {
         router.push(`/day/${date}`);
     };
 
-    useEffect(() => { fetchData(); }, []);
+    useEffect(() => {
+        fetchData();
+        fetchSyncStatus();
+        // 60秒ごとにステータスを更新
+        const interval = setInterval(fetchSyncStatus, 60000);
+        return () => clearInterval(interval);
+    }, []);
 
     const remaining = Math.max(0, GOAL_CALORIES - todayCalories);
     const progress = Math.min(100, (todayCalories / GOAL_CALORIES) * 100);
@@ -190,6 +162,20 @@ export default function Home() {
         if (state === "copied") return "コピー済!";
         if (state === "error") return "エラー";
         return label;
+    };
+
+    /** cron式を人間が読める形式に変換 */
+    const formatSchedule = (schedule: string): string => {
+        // "0 8,12,19,23 * * *" のような形式をパース
+        const parts = schedule.split(" ");
+        if (parts.length >= 2) {
+            const hours = parts[1];
+            if (hours.includes(",")) {
+                return `毎日 ${hours.split(",").map(h => `${h}:00`).join("・")}`;
+            }
+            return `毎日 ${hours}:00`;
+        }
+        return schedule;
     };
 
     /** カロリーリング（コンパクト版） */
@@ -230,7 +216,6 @@ export default function Home() {
                     <nav className="flex items-center gap-4">
                         <Link href="/days" className="text-xs text-gray-500 hover:text-gray-900">履歴</Link>
                         <Link href="/meals" className="text-xs text-gray-500 hover:text-gray-900">食事一覧</Link>
-                        <Link href="/meals/new" className="text-xs bg-emerald-600 text-white px-3 py-1.5 rounded-md hover:bg-emerald-700 font-medium">+ 記録</Link>
                     </nav>
                 </div>
             </header>
@@ -315,92 +300,77 @@ export default function Home() {
                     </div>
                 </div>
 
-                {/* 下段: 同期 + Strong + AI */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                    {/* データ同期 */}
-                    <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-                        <div className="flex items-center justify-between mb-3">
-                            <div className="flex items-center gap-2">
-                                <div className="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center">
-                                    <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                    </svg>
-                                </div>
-                                <h3 className="text-sm font-semibold text-gray-900">データ同期</h3>
-                            </div>
-                            <button onClick={() => setShowDateRange(!showDateRange)} className="text-[10px] text-gray-400 hover:text-gray-600 underline">
-                                {showDateRange ? "閉じる" : "範囲指定"}
-                            </button>
-                        </div>
-
-                        {showDateRange && (
-                            <div className="mb-3 p-2.5 bg-gray-50 rounded-lg space-y-2">
-                                <div className="flex items-center gap-2">
-                                    <label className="text-[10px] text-gray-500 w-8">From</label>
-                                    <input type="date" value={syncFrom} onChange={(e) => setSyncFrom(e.target.value)} className="flex-1 text-xs px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-emerald-500" />
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <label className="text-[10px] text-gray-500 w-8">To</label>
-                                    <input type="date" value={syncTo} onChange={(e) => setSyncTo(e.target.value)} className="flex-1 text-xs px-2 py-1.5 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-emerald-500" />
-                                </div>
-                                <div className="flex gap-1.5">
-                                    <button onClick={() => { setSyncFrom('2026-01-01'); setSyncTo(format(new Date(), 'yyyy-MM-dd')); }} className="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-1 rounded hover:bg-emerald-100">今年全部</button>
-                                    <button onClick={() => { setSyncFrom(format(new Date(Date.now() - 30*86400000), 'yyyy-MM-dd')); setSyncTo(format(new Date(), 'yyyy-MM-dd')); }} className="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-1 rounded hover:bg-emerald-100">直近30日</button>
-                                    <button onClick={() => { setSyncFrom(format(new Date(Date.now() - 7*86400000), 'yyyy-MM-dd')); setSyncTo(format(new Date(), 'yyyy-MM-dd')); }} className="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-1 rounded hover:bg-emerald-100">直近7日</button>
-                                </div>
-                            </div>
-                        )}
-
-                        <button
-                            onClick={() => handleSync(syncFrom || undefined, syncTo || undefined)}
-                            disabled={syncing}
-                            className="w-full py-2.5 bg-emerald-600 text-white text-sm font-semibold rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
-                        >
-                            {syncing && <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
-                            {syncing ? "取得中..." : showDateRange && syncFrom ? `${syncFrom} 〜 同期` : "あすけん + Strong を同期"}
-                        </button>
-                        {syncResult && (
-                            <div className="mt-2 bg-gray-50 rounded-md p-2 text-xs text-gray-600">
-                                あすけん {syncResult.askenCount}日 / Strong {syncResult.strongCount}日 / 計 {syncResult.dayCount}件
-                                {syncResult.errors.length > 0 && <p className="mt-1 text-amber-600 text-[10px]">{syncResult.errors.join(" / ")}</p>}
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Strong 取り込み */}
+                {/* 下段: 同期ステータス + AI */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* 同期ステータス */}
                     <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
                         <div className="flex items-center gap-2 mb-3">
-                            <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center">
-                                <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                            <div className="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center">
+                                <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
                             </div>
-                            <h3 className="text-sm font-semibold text-gray-900">Strong 取り込み</h3>
+                            <h3 className="text-sm font-semibold text-gray-900">自動同期</h3>
                         </div>
-                        <p className="text-xs text-gray-500 mb-3">
-                            <span className="inline-flex items-center gap-1 text-emerald-600">
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                                Google Drive 自動連携
-                            </span>
-                            <span className="text-gray-400 ml-1">— 同期ボタンで自動取得</span>
-                        </p>
-                        {/* フォールバック: 手動アップロード */}
-                        <details className="group">
-                            <summary className="text-[10px] text-gray-400 cursor-pointer hover:text-gray-600">手動アップロード（.txtを直接取り込み）</summary>
-                            <label
-                                onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}
-                                className={`mt-2 block w-full py-3 border-2 border-dashed rounded-lg text-center cursor-pointer transition-all ${isDragOver ? 'border-blue-400 bg-blue-50' : 'border-gray-200 hover:border-blue-300'} ${strongUploading ? 'opacity-50 pointer-events-none' : ''}`}
-                            >
-                                <input type="file" accept=".txt" multiple className="hidden" onChange={(e) => handleStrongUpload(e.target.files)} disabled={strongUploading} />
-                                {strongUploading ? (
-                                    <span className="text-xs text-gray-500">処理中...</span>
+
+                        {syncStatus ? (
+                            <div className="space-y-3">
+                                {/* スケジュール */}
+                                <div className="flex items-center gap-2">
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                                        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                                        稼働中
+                                    </span>
+                                    <span className="text-xs text-gray-500">{formatSchedule(syncStatus.schedule)}</span>
+                                </div>
+
+                                {/* 接続状態 */}
+                                <div className="flex gap-3 text-[10px]">
+                                    <span className={`inline-flex items-center gap-1 ${syncStatus.askenConfigured ? 'text-emerald-600' : 'text-gray-400'}`}>
+                                        {syncStatus.askenConfigured ? (
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                        ) : (
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                        )}
+                                        あすけん
+                                    </span>
+                                    <span className={`inline-flex items-center gap-1 ${syncStatus.googleDriveConfigured ? 'text-emerald-600' : 'text-gray-400'}`}>
+                                        {syncStatus.googleDriveConfigured ? (
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                                        ) : (
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                        )}
+                                        Google Drive (Strong)
+                                    </span>
+                                </div>
+
+                                {/* 最終同期 */}
+                                {syncStatus.lastSync ? (
+                                    <div className="bg-gray-50 rounded-lg p-2.5">
+                                        <div className="flex items-center justify-between mb-1">
+                                            <span className="text-[10px] text-gray-500">最終同期</span>
+                                            <span className="text-[10px] text-gray-700 font-medium">
+                                                {formatDistanceToNow(new Date(syncStatus.lastSync.timestamp), { addSuffix: true, locale: ja })}
+                                            </span>
+                                        </div>
+                                        <div className="flex gap-3 text-[10px] text-gray-600">
+                                            <span>あすけん <span className="font-semibold">{syncStatus.lastSync.askenCount}</span>日</span>
+                                            <span>Strong <span className="font-semibold">{syncStatus.lastSync.strongCount}</span>日</span>
+                                            <span>計 <span className="font-semibold">{syncStatus.lastSync.dayCount}</span>件</span>
+                                        </div>
+                                        {syncStatus.lastSync.errors.length > 0 && (
+                                            <p className="mt-1 text-[10px] text-amber-600 truncate" title={syncStatus.lastSync.errors.join(" / ")}>
+                                                {syncStatus.lastSync.errors[0]}
+                                                {syncStatus.lastSync.errors.length > 1 && ` 他${syncStatus.lastSync.errors.length - 1}件`}
+                                            </p>
+                                        )}
+                                    </div>
                                 ) : (
-                                    <span className="text-xs text-gray-500">ドラッグ&ドロップ / クリック</span>
+                                    <p className="text-xs text-gray-400">まだ同期が実行されていません</p>
                                 )}
-                            </label>
-                        </details>
-                        {strongResult && (
-                            <p className="mt-2 text-xs text-gray-600">{strongResult.parsedWorkouts} ワークアウト → {strongResult.savedDays} 日分保存
-                                {strongResult.errors.length > 0 && <span className="text-amber-600 ml-1">{strongResult.errors.join(" / ")}</span>}
-                            </p>
+                            </div>
+                        ) : (
+                            <div className="h-16 bg-gray-50 rounded-lg animate-pulse" />
                         )}
                     </div>
 

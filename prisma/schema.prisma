@@ -74,3 +74,13 @@ model DailyData {
 
   @@index([date])
 }
+
+/// 同期ログ（最終同期時刻・結果を保持、常にid=1の1レコード）
+model SyncLog {
+  id          Int      @id @default(1)
+  timestamp   DateTime @default(now())
+  askenCount  Int      @default(0) @map("asken_count")
+  strongCount Int      @default(0) @map("strong_count")
+  dayCount    Int      @default(0) @map("day_count")
+  errors      String?  // JSON文字列
+}

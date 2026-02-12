@@ -84,8 +84,8 @@ COPY --from=builder /app/node_modules/playwright ./node_modules/playwright
 COPY --from=builder /app/node_modules/playwright-core ./node_modules/playwright-core
 COPY --from=builder /app/package.json ./package.json
 
-# tsx (TypeScriptランタイム) を本番用にインストール
-RUN npm install --no-save tsx
+# tsx (TypeScriptランタイム) + node-cron を本番用にインストール
+RUN npm install --no-save tsx node-cron
 
 # Playwright ブラウザをインストール（chromium のみ）
 RUN npx playwright install chromium
