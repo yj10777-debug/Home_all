@@ -65,7 +65,7 @@ export async function autoLogin(options?: { headless?: boolean }): Promise<strin
         // wsp ページを踏んでセッション Cookie を確実に取得
         const t = todayStr();
         const warmupUrl = `https://www.asken.jp/wsp/comment/${t}`;
-        await page.goto(warmupUrl, { waitUntil: 'networkidle' });
+        await page.goto(warmupUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
         // ログインページにリダイレクトされた場合はエラー
         if (page.url().includes('/login')) {

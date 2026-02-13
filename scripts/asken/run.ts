@@ -46,7 +46,7 @@ async function verifySession(context: BrowserContext, dateStr: string): Promise<
     const page = await context.newPage();
     try {
         const url = `https://www.asken.jp/wsp/comment/${dateStr}`;
-        await page.goto(url, { waitUntil: 'networkidle', timeout: 15000 });
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
         return !page.url().includes('login');
     } catch {
         return false;

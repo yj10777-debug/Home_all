@@ -70,7 +70,10 @@ export async function scrapeAdviceNutrients(params: {
 
     const page: Page = await context.newPage();
     try {
-        await page.goto(url, { waitUntil: 'networkidle' });
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+
+        // テーブルのレンダリングを待機
+        await page.waitForSelector('table', { timeout: 10000 }).catch(() => { });
 
         if (page.url().includes('login')) {
             throw new Error(`Redirected to login while opening advice page: ${mealType} ${url}`);

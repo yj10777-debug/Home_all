@@ -64,7 +64,7 @@ function runAskenForDate(dateStr: string): Promise<{ ok: boolean; data?: AskenDa
     proc.stderr?.on("data", (d) => { stderr += d.toString(); });
     proc.on("close", (code) => {
       if (code !== 0) {
-        resolve({ ok: false, error: stderr || `exit ${code}` });
+        resolve({ ok: false, error: stderr.slice(0, 500) || `exit ${code}` });
         return;
       }
       // stdout から JSON をパース（run.ts は JSON + "Saved: ..." を出力する）
@@ -75,9 +75,12 @@ function runAskenForDate(dateStr: string): Promise<{ ok: boolean; data?: AskenDa
           const data = JSON.parse(jsonMatch[0]) as AskenDayResult;
           resolve({ ok: true, data });
         } else {
-          resolve({ ok: true }); // JSON なしでも成功扱い
+          // JSONが見つからない場合、stdoutの先頭をエラーとして記録
+          console.warn(`Asken ${dateStr}: stdout に JSON が見つかりません: ${stdout.slice(0, 200)}`);
+          resolve({ ok: true });
         }
-      } catch {
+      } catch (parseErr) {
+        console.warn(`Asken ${dateStr}: JSON パース失敗:`, parseErr, stdout.slice(0, 200));
         resolve({ ok: true }); // パース失敗でも scrape 自体は成功
       }
     });
@@ -289,10 +292,13 @@ export async function syncData(options?: { from?: string; to?: string }): Promis
   const strongPath = process.env.STRONG_DATA_PATH || DEFAULT_STRONG_PATH;
   let strongMap = new Map<string, StrongDayData>();
 
+  console.log(`Strong: パス "${strongPath}" を確認中...`);
   if (fs.existsSync(strongPath)) {
+    console.log(`Strong: ローカルフォルダからファイルを読み込み中...`);
     // ローカルフォルダから読み込み
     const { data, errors: strongErrors } = parseStrongFiles(strongPath, dateRange);
     strongMap = data;
+    console.log(`Strong: ${strongMap.size} 日分のデータを検出 (対象範囲: ${Array.from(dateRange).join(", ")})`);
     errors.push(...strongErrors);
   } else {
     // Google Drive から取得を試みる

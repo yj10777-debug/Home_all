@@ -35,7 +35,12 @@ export async function scrapeDay(dateStr: string, existingContext?: BrowserContex
         page = await context.newPage();
 
         const url = `https://www.asken.jp/wsp/comment/${dateStr}`;
-        await page.goto(url, { waitUntil: 'networkidle' });
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+
+        // ページ内のコンテンツがレンダリングされるまで待機
+        await page.waitForSelector('#karute_report_breakfast, #karute_report_lunch, #karute_report_dinner', { timeout: 10000 }).catch(() => {
+            // セレクタが見つからない場合もログインチェックに進む
+        });
 
         if (page.url().includes('login')) {
             throw new Error('Redirected to login page.');
