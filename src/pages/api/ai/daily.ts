@@ -1,6 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { format } from "date-fns";
 import { generateDailyPrompt } from "../../../lib/gemini";
+import { getEffectiveTodayStr } from "../../../lib/dateUtils";
 
 /**
  * 日次プロンプト生成エンドポイント
@@ -18,7 +18,7 @@ export default async function handler(
   }
 
   const dateStr =
-    (req.query.date as string) || format(new Date(), "yyyy-MM-dd");
+    (req.query.date as string) || getEffectiveTodayStr();
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     return res.status(400).json({ error: "日付の形式が不正です (YYYY-MM-DD)" });

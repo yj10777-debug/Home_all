@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { getUserIdFromRequest } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import { createMealSchema } from '@/lib/schemas/meal';
+import { getEffectiveTodayStr } from '@/lib/dateUtils';
 import type { MealLog, MealItem } from '@prisma/client';
 
 export type MealLogWithItems = MealLog & { items: MealItem[] };
@@ -25,9 +26,9 @@ export default async function handler(
       return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const dateStr = (req.query.date as string) || new Date().toISOString().slice(0, 10);
+    const dateStr = (req.query.date as string) || getEffectiveTodayStr();
     const parsed = /^\d{4}-\d{2}-\d{2}$/.exec(dateStr);
-    const date = parsed ? parsed[0] : new Date().toISOString().slice(0, 10);
+    const date = parsed ? parsed[0] : getEffectiveTodayStr();
     const start = new Date(`${date}T00:00:00`);
     const end = new Date(`${date}T23:59:59.999`);
 

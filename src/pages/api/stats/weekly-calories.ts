@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
 import { subDays, startOfDay, endOfDay, format } from 'date-fns';
+import { getEffectiveToday } from '../../../lib/dateUtils';
 
 const prisma = new PrismaClient();
 
@@ -10,8 +11,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     try {
-        const today = new Date();
-        const sevenDaysAgo = subDays(today, 6); // Include today, so go back 6 days
+        const today = getEffectiveToday();
+        const sevenDaysAgo = subDays(today, 6); // 今日を含むため6日前まで
 
         const startDate = startOfDay(sevenDaysAgo);
         const endDate = endOfDay(today);

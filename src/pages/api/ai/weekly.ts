@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { format, previousSunday } from "date-fns";
 import { generateWeeklyPrompt } from "../../../lib/gemini";
+import { getEffectiveToday } from "../../../lib/dateUtils";
 
 /**
  * 直近の日曜起点の週開始日を取得する
@@ -26,7 +27,7 @@ export default async function handler(
   }
 
   const weekStart =
-    (req.query.weekStart as string) || getLatestWeekStart(new Date());
+    (req.query.weekStart as string) || getLatestWeekStart(getEffectiveToday());
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) {
     return res.status(400).json({ error: "日付の形式が不正です (YYYY-MM-DD)" });

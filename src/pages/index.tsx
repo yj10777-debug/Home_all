@@ -5,6 +5,7 @@ import { useRouter } from 'next/router';
 import { WeeklyCaloriesChart } from '../components/WeeklyCaloriesChart';
 import { format, formatDistanceToNow } from 'date-fns';
 import { ja } from 'date-fns/locale';
+import { getEffectiveToday, getEffectiveTodayStr } from '../lib/dateUtils';
 
 type WeeklyData = { date: string; calories: number };
 type PfcKey = "protein" | "fat" | "carbs";
@@ -84,12 +85,12 @@ export default function Home() {
             if (res.ok) {
                 const data = await res.json();
                 setWeeklyData(data);
-                const todayStr = format(new Date(), 'yyyy-MM-dd');
+                const todayStr = getEffectiveTodayStr();
                 const todayEntry = data.find((d: WeeklyData) => d.date === todayStr);
                 setTodayCalories(todayEntry?.calories || 0);
             } else { setWeeklyData([]); setTodayCalories(0); }
 
-            const todayStr = format(new Date(), 'yyyy-MM-dd');
+            const todayStr = getEffectiveTodayStr();
             let foundPfc = false;
             try {
                 const dayRes = await fetch(`/api/day?date=${todayStr}`);
@@ -125,7 +126,7 @@ export default function Home() {
         setState("loading");
         setCopyError(null);
         try {
-            const todayStr = format(new Date(), 'yyyy-MM-dd');
+            const todayStr = getEffectiveTodayStr();
             const url = type === "daily" ? `/api/ai/daily?date=${todayStr}` : `/api/ai/weekly`;
             const res = await fetch(url);
             const data = await res.json();
@@ -211,7 +212,7 @@ export default function Home() {
                             <span className="text-white text-xs font-bold">N</span>
                         </div>
                         <h1 className="text-lg font-bold text-gray-900">Nutrition Tracker</h1>
-                        <span className="text-xs text-gray-400 ml-2 hidden sm:inline">{format(new Date(), 'yyyy/M/d')}</span>
+                        <span className="text-xs text-gray-400 ml-2 hidden sm:inline">{format(getEffectiveToday(), 'yyyy/M/d')}</span>
                     </div>
                     <nav className="flex items-center gap-4">
                         <Link href="/days" className="text-xs text-gray-500 hover:text-gray-900">履歴</Link>

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Head from 'next/head';
 import Link from 'next/link';
 import { apiClient } from '../../lib/apiClient';
+import { getEffectiveTodayStr } from '../../lib/dateUtils';
 
 interface MealItem {
     id: number;
@@ -28,9 +29,7 @@ export default function MealsIndex() {
     const [meals, setMeals] = useState<Meal[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [date, setDate] = useState<string>(
-        new Date().toISOString().split('T')[0]
-    );
+    const [date, setDate] = useState<string>(getEffectiveTodayStr());
 
     const fetchMeals = async (targetDate: string) => {
         setLoading(true);

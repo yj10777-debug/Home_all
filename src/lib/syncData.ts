@@ -5,6 +5,7 @@ import { format, subDays } from "date-fns";
 import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { fetchStrongFilesFromDrive } from "./googleDrive";
+import { getEffectiveToday } from "./dateUtils";
 
 const SECRETS_DIR = path.join(process.cwd(), "secrets");
 const DEFAULT_STRONG_PATH = process.env.STRONG_DATA_PATH || "G:\\マイドライブ\\30_Home\\00_Training";
@@ -28,7 +29,7 @@ type StrongDayData = { workouts: StrongWorkout[]; totals: { workouts: number; se
  * @param to 終了日 (YYYY-MM-DD)。省略時は today
  */
 function getTargetDates(from?: string, to?: string): string[] {
-  const endDate = to ? new Date(to + "T00:00:00") : new Date();
+  const endDate = to ? new Date(to + "T00:00:00") : getEffectiveToday();
   const startDate = from ? new Date(from + "T00:00:00") : subDays(endDate, 3);
   const dates: string[] = [];
   const current = new Date(startDate);

@@ -11,11 +11,15 @@ const PROJECT_ROOT = process.cwd();
 const SECRETS_DIR = path.join(PROJECT_ROOT, 'secrets');
 const STATE_FILE = path.join(SECRETS_DIR, 'asken-state.json');
 
+/** 朝5時までは前日として扱う */
 function todayStr() {
     const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    const d = String(now.getDate()).padStart(2, '0');
+    // JST = UTC+9
+    const jstHour = (now.getUTCHours() + 9) % 24;
+    const effective = jstHour < 5 ? new Date(now.getTime() - 86400000) : now;
+    const y = effective.getFullYear();
+    const m = String(effective.getMonth() + 1).padStart(2, '0');
+    const d = String(effective.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
 }
 
