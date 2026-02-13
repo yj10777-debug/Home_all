@@ -3,13 +3,13 @@
  * node-cron で毎日指定時刻にデータ同期APIを呼び出す
  *
  * 環境変数:
- *   CRON_SCHEDULE: cron式（デフォルト: "0 8,12,19,23 * * *" = 毎日 8:00, 12:00, 19:00, 23:00）
+ *   CRON_SCHEDULE: cron式（デフォルト: "0 9,11,13,16,19,21,22,23 * * *" = 毎日 9,11,13,16,19,21,22,23時）
  *   CRON_SECRET: 内部API認証用シークレット
  *   PORT: Next.jsサーバーのポート（デフォルト: 3000）
  */
 import cron from "node-cron";
 
-const SCHEDULE = process.env.CRON_SCHEDULE || "0 8,12,19,23 * * *";
+const SCHEDULE = process.env.CRON_SCHEDULE || "0 9,11,13,16,19,21,22,23 * * *";
 const SECRET = process.env.CRON_SECRET || "";
 const PORT = process.env.PORT || "3000";
 const BASE_URL = `http://localhost:${PORT}`;
