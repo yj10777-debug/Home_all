@@ -75,6 +75,21 @@ model DailyData {
   @@index([date])
 }
 
+/// AI 評価結果を保存するテーブル
+model AiEvaluation {
+  id        String   @id @default(cuid())
+  date      String   // YYYY-MM-DD（評価対象日）
+  type      String   // "daily" | "weekly"
+  model     String   // 使用したモデル名
+  prompt    String   // 送信したプロンプト
+  response  String   // AIの回答テキスト
+  trigger   String   // "manual" | "cron"（実行トリガー）
+  createdAt DateTime @default(now())
+
+  @@index([date])
+  @@index([type, date])
+}
+
 /// 同期ログ（最終同期時刻・結果を保持、常にid=1の1レコード）
 model SyncLog {
   id          Int      @id @default(1)

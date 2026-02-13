@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Head from 'next/head';
 import { useRouter } from 'next/router';
@@ -20,8 +20,6 @@ const PFC_TARGETS = [
     { key: "fat" as const, label: "F", name: "脂質", color: "#F59E0B", bgColor: "bg-amber-500" },
     { key: "carbs" as const, label: "C", name: "炭水化物", color: "#3B82F6", bgColor: "bg-blue-500" },
 ] as const;
-
-type CopyState = "idle" | "loading" | "copied" | "error";
 
 /** 同期ステータス */
 type SyncStatus = {
@@ -52,10 +50,10 @@ export default function Home() {
     const [syncing, setSyncing] = useState(false);
     const [syncResult, setSyncResult] = useState<{ askenCount: number; strongCount: number; dayCount: number; errors: string[] } | null>(null);
 
-    // プロンプトコピー
-    const [dailyCopyState, setDailyCopyState] = useState<CopyState>("idle");
-    const [weeklyCopyState, setWeeklyCopyState] = useState<CopyState>("idle");
-    const [copyError, setCopyError] = useState<string | null>(null);
+    // AI評価
+    const [evaluating, setEvaluating] = useState(false);
+    const [latestEval, setLatestEval] = useState<{ date: string; response: string; model: string; createdAt: string } | null>(null);
+    const [evalError, setEvalError] = useState<string | null>(null);
 
     const parseNumericValue = (value: unknown): number => {
         if (typeof value !== "string") return 0;
@@ -152,25 +150,43 @@ export default function Home() {
         } finally { setSyncing(false); }
     };
 
-    const handleCopyPrompt = useCallback(async (type: "daily" | "weekly") => {
-        const setState = type === "daily" ? setDailyCopyState : setWeeklyCopyState;
-        setState("loading");
-        setCopyError(null);
+    /** 最新の AI 評価を取得 */
+    const fetchLatestEval = async () => {
         try {
             const todayStr = getEffectiveTodayStr();
-            const url = type === "daily" ? `/api/ai/daily?date=${todayStr}` : `/api/ai/weekly`;
-            const res = await fetch(url);
+            const res = await fetch(`/api/ai/history?date=${todayStr}&type=daily`);
+            if (res.ok) {
+                const data = await res.json();
+                if (data.evaluations?.length > 0) {
+                    const e = data.evaluations[0];
+                    setLatestEval({ date: e.date, response: e.response, model: e.model, createdAt: e.createdAt });
+                }
+            }
+        } catch { /* 静かに失敗 */ }
+    };
+
+    /** AI 評価を手動実行 */
+    const handleEvaluate = async () => {
+        setEvaluating(true);
+        setEvalError(null);
+        try {
+            const todayStr = getEffectiveTodayStr();
+            const res = await fetch("/api/ai/evaluate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ date: todayStr, type: "daily", trigger: "manual" }),
+            });
             const data = await res.json();
-            if (!res.ok) throw new Error(data.error || "プロンプトの生成に失敗しました");
-            await navigator.clipboard.writeText(data.prompt);
-            setState("copied");
-            setTimeout(() => setState("idle"), 2000);
+            if (res.ok && data.success) {
+                const e = data.evaluation;
+                setLatestEval({ date: e.date, response: e.response, model: e.model, createdAt: e.createdAt });
+            } else {
+                setEvalError(data.error || "評価に失敗しました");
+            }
         } catch (e) {
-            setState("error");
-            setCopyError(e instanceof Error ? e.message : String(e));
-            setTimeout(() => { setState("idle"); setCopyError(null); }, 3000);
-        }
-    }, []);
+            setEvalError(e instanceof Error ? e.message : String(e));
+        } finally { setEvaluating(false); }
+    };
 
     /** チャートのバーがクリックされた時 */
     const handleBarClick = (date: string) => {
@@ -180,6 +196,7 @@ export default function Home() {
     useEffect(() => {
         fetchData();
         fetchSyncStatus();
+        fetchLatestEval();
         // 60秒ごとにステータスを更新
         const interval = setInterval(fetchSyncStatus, 60000);
         return () => clearInterval(interval);
@@ -188,13 +205,6 @@ export default function Home() {
     const remaining = Math.max(0, GOAL_CALORIES - todayCalories);
     const progress = Math.min(100, (todayCalories / GOAL_CALORIES) * 100);
     const isOverGoal = todayCalories > GOAL_CALORIES;
-
-    const getCopyButtonLabel = (state: CopyState, label: string) => {
-        if (state === "loading") return "生成中...";
-        if (state === "copied") return "コピー済!";
-        if (state === "error") return "エラー";
-        return label;
-    };
 
     /** cron式を人間が読める形式に変換 */
     const formatSchedule = (schedule: string): string => {
@@ -380,26 +390,39 @@ export default function Home() {
                         )}
                     </div>
 
-                    {/* Gem AI 評価 */}
+                    {/* AI 食事評価 */}
                     <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
-                        <div className="flex items-center gap-2 mb-3">
-                            <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center">
-                                <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                                <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center">
+                                    <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                                </div>
+                                <h3 className="text-sm font-semibold text-gray-900">AI 食事評価</h3>
                             </div>
-                            <h3 className="text-sm font-semibold text-gray-900">Gem AI 評価</h3>
-                        </div>
-                        <div className="grid grid-cols-2 gap-2">
-                            <button onClick={() => handleCopyPrompt("daily")} disabled={dailyCopyState === "loading"}
-                                className={`py-2 text-xs font-semibold rounded-lg transition-all active:scale-[0.98] ${dailyCopyState === "copied" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : dailyCopyState === "error" ? "bg-red-50 text-red-700" : "bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"}`}>
-                                {getCopyButtonLabel(dailyCopyState, "今日の食事評価")}
-                            </button>
-                            <button onClick={() => handleCopyPrompt("weekly")} disabled={weeklyCopyState === "loading"}
-                                className={`py-2 text-xs font-semibold rounded-lg transition-all active:scale-[0.98] ${weeklyCopyState === "copied" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : weeklyCopyState === "error" ? "bg-red-50 text-red-700" : "bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50"}`}>
-                                {getCopyButtonLabel(weeklyCopyState, "週次まとめ")}
+                            <button
+                                onClick={handleEvaluate}
+                                disabled={evaluating}
+                                className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 disabled:opacity-50 transition-all active:scale-[0.98] flex items-center gap-1.5"
+                            >
+                                {evaluating && <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+                                {evaluating ? "評価中..." : "今日を評価"}
                             </button>
                         </div>
-                        {copyError && <p className="mt-2 text-[10px] text-red-500">{copyError}</p>}
-                        <p className="mt-2 text-[10px] text-gray-400">コピー → Gemini Gem に貼り付けて送信</p>
+                        {evalError && <p className="text-xs text-red-500 mb-2">{evalError}</p>}
+                        {latestEval ? (
+                            <div className="bg-gray-50 rounded-lg p-3 max-h-48 overflow-y-auto">
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-[10px] text-gray-500">{latestEval.date}</span>
+                                    <span className="text-[10px] text-gray-400">{latestEval.model}</span>
+                                </div>
+                                <div className="text-xs text-gray-700 whitespace-pre-wrap leading-relaxed prose-sm">
+                                    {latestEval.response}
+                                </div>
+                            </div>
+                        ) : (
+                            <p className="text-xs text-gray-400">まだ評価がありません。「今日を評価」を押すか、毎朝5時に自動で前日分が生成されます。</p>
+                        )}
+                        <p className="mt-2 text-[10px] text-gray-400">毎朝5時に前日分を自動評価 / 手動でいつでも実行可</p>
                     </div>
                 </div>
             </main>
