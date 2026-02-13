@@ -48,6 +48,10 @@ export default function Home() {
     // 同期ステータス
     const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
 
+    // あすけん手動同期
+    const [syncing, setSyncing] = useState(false);
+    const [syncResult, setSyncResult] = useState<{ askenCount: number; strongCount: number; dayCount: number; errors: string[] } | null>(null);
+
     // プロンプトコピー
     const [dailyCopyState, setDailyCopyState] = useState<CopyState>("idle");
     const [weeklyCopyState, setWeeklyCopyState] = useState<CopyState>("idle");
@@ -119,6 +123,33 @@ export default function Home() {
         } catch {
             // 静かに失敗
         }
+    };
+
+    /** あすけん同期を手動実行 */
+    const handleAskenSync = async () => {
+        setSyncing(true);
+        setSyncResult(null);
+        try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 10 * 60 * 1000);
+            const res = await fetch("/api/sync", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({}),
+                signal: controller.signal,
+            });
+            clearTimeout(timeout);
+            const data = await res.json();
+            if (res.ok && data.success) {
+                setSyncResult({ askenCount: data.askenCount ?? 0, strongCount: data.strongCount, dayCount: data.dayCount, errors: data.errors || [] });
+                await fetchData();
+                await fetchSyncStatus();
+            } else {
+                setSyncResult({ askenCount: 0, strongCount: 0, dayCount: 0, errors: [data.error || "取得に失敗しました"] });
+            }
+        } catch (e) {
+            setSyncResult({ askenCount: 0, strongCount: 0, dayCount: 0, errors: [String(e)] });
+        } finally { setSyncing(false); }
     };
 
     const handleCopyPrompt = useCallback(async (type: "daily" | "weekly") => {
@@ -301,77 +332,51 @@ export default function Home() {
                     </div>
                 </div>
 
-                {/* 下段: 同期ステータス + AI */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    {/* 同期ステータス */}
+                {/* 下段: あすけん同期 + 自動同期ステータス + AI */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    {/* あすけん手動同期 */}
                     <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
                         <div className="flex items-center gap-2 mb-3">
-                            <div className="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center">
-                                <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            <div className="w-8 h-8 bg-orange-50 rounded-lg flex items-center justify-center">
+                                <svg className="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                 </svg>
                             </div>
-                            <h3 className="text-sm font-semibold text-gray-900">自動同期</h3>
+                            <h3 className="text-sm font-semibold text-gray-900">あすけん同期</h3>
                         </div>
-
-                        {syncStatus ? (
-                            <div className="space-y-3">
-                                {/* スケジュール */}
-                                <div className="flex items-center gap-2">
+                        <button
+                            onClick={handleAskenSync}
+                            disabled={syncing}
+                            className="w-full py-2.5 bg-orange-500 text-white text-sm font-semibold rounded-lg hover:bg-orange-600 disabled:opacity-50 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+                        >
+                            {syncing && <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+                            {syncing ? "取得中..." : "今すぐ取得"}
+                        </button>
+                        {syncResult && (
+                            <div className="mt-2 bg-gray-50 rounded-md p-2 text-xs text-gray-600">
+                                あすけん {syncResult.askenCount}日 / Strong {syncResult.strongCount}日
+                                {syncResult.errors.length > 0 && <p className="mt-1 text-amber-600 text-[10px]">{syncResult.errors.slice(0, 2).join(" / ")}</p>}
+                            </div>
+                        )}
+                        {/* 自動同期ステータス（コンパクト） */}
+                        {syncStatus && (
+                            <div className="mt-3 pt-3 border-t border-gray-100">
+                                <div className="flex items-center gap-2 mb-1.5">
                                     <span className="inline-flex items-center gap-1 text-[10px] font-medium text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
                                         <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                                        稼働中
+                                        自動
                                     </span>
-                                    <span className="text-xs text-gray-500">{formatSchedule(syncStatus.schedule)}</span>
+                                    <span className="text-[10px] text-gray-400">{formatSchedule(syncStatus.schedule)}</span>
                                 </div>
-
-                                {/* 接続状態 */}
-                                <div className="flex gap-3 text-[10px]">
-                                    <span className={`inline-flex items-center gap-1 ${syncStatus.askenConfigured ? 'text-emerald-600' : 'text-gray-400'}`}>
-                                        {syncStatus.askenConfigured ? (
-                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                                        ) : (
-                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                        )}
-                                        あすけん
-                                    </span>
-                                    <span className={`inline-flex items-center gap-1 ${syncStatus.googleDriveConfigured ? 'text-emerald-600' : 'text-gray-400'}`}>
-                                        {syncStatus.googleDriveConfigured ? (
-                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                                        ) : (
-                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                                        )}
-                                        Google Drive (Strong)
-                                    </span>
-                                </div>
-
-                                {/* 最終同期 */}
-                                {syncStatus.lastSync ? (
-                                    <div className="bg-gray-50 rounded-lg p-2.5">
-                                        <div className="flex items-center justify-between mb-1">
-                                            <span className="text-[10px] text-gray-500">最終同期</span>
-                                            <span className="text-[10px] text-gray-700 font-medium">
-                                                {formatDistanceToNow(new Date(syncStatus.lastSync.timestamp), { addSuffix: true, locale: ja })}
-                                            </span>
-                                        </div>
-                                        <div className="flex gap-3 text-[10px] text-gray-600">
-                                            <span>あすけん <span className="font-semibold">{syncStatus.lastSync.askenCount}</span>日</span>
-                                            <span>Strong <span className="font-semibold">{syncStatus.lastSync.strongCount}</span>日</span>
-                                            <span>計 <span className="font-semibold">{syncStatus.lastSync.dayCount}</span>件</span>
-                                        </div>
-                                        {syncStatus.lastSync.errors.length > 0 && (
-                                            <p className="mt-1 text-[10px] text-amber-600 truncate" title={syncStatus.lastSync.errors.join(" / ")}>
-                                                {syncStatus.lastSync.errors[0]}
-                                                {syncStatus.lastSync.errors.length > 1 && ` 他${syncStatus.lastSync.errors.length - 1}件`}
-                                            </p>
-                                        )}
-                                    </div>
-                                ) : (
-                                    <p className="text-xs text-gray-400">まだ同期が実行されていません</p>
+                                {syncStatus.lastSync && (
+                                    <p className="text-[10px] text-gray-500">
+                                        最終: {formatDistanceToNow(new Date(syncStatus.lastSync.timestamp), { addSuffix: true, locale: ja })}
+                                        <span className="text-gray-400 ml-1">
+                                            (あすけん {syncStatus.lastSync.askenCount}日 / Strong {syncStatus.lastSync.strongCount}日)
+                                        </span>
+                                    </p>
                                 )}
                             </div>
-                        ) : (
-                            <div className="h-16 bg-gray-50 rounded-lg animate-pulse" />
                         )}
                     </div>
 
