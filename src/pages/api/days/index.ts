@@ -26,6 +26,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       orderBy: { date: "desc" },
     });
 
+    // 評価済みの日付を取得
+    const evaluations = await prisma.aiEvaluation.findMany({
+      select: { date: true },
+      distinct: ['date'],
+    });
+    const evaluatedDates = new Set(evaluations.map(e => e.date));
+
     // 各日のサマリーを生成
     type DaySummary = {
       date: string;
@@ -34,6 +41,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       steps: number | null;
       exerciseCalories: number | null;
       hasStrong: boolean;
+      hasEvaluation: boolean;
       score: number;
     };
 
@@ -82,6 +90,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       };
 
       const scoreResult = calculateDailyScore(dayData);
+      const hasEvaluation = evaluatedDates.has(r.date);
 
       return {
         date: r.date,
@@ -90,6 +99,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         steps: r.steps,
         exerciseCalories: r.exerciseCalories,
         hasStrong: !!r.strongData,
+        hasEvaluation,
         score: scoreResult.total,
       };
     });

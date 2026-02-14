@@ -7,6 +7,7 @@ type CalendarDay = {
     date: string;
     score: number;
     hasStrong: boolean;
+    hasEvaluation: boolean;
     steps: number | null;
     calories: number;
 };
@@ -90,7 +91,9 @@ export default function MonthCalendar({ days, initialMonth = new Date() }: Props
                     }
 
                     // データありの日
-                    const scoreColor = getScoreColor(dayData.score);
+                    const scoreColor = dayData.hasEvaluation
+                        ? getScoreColor(dayData.score)
+                        : 'text-gray-400 bg-gray-50 border-gray-200';
 
                     return (
                         <Link
@@ -108,8 +111,14 @@ export default function MonthCalendar({ days, initialMonth = new Date() }: Props
 
                             {/* 中央: スコア */}
                             <div className="flex flex-col items-center justify-center -mt-1">
-                                <span className="text-3xl font-bold tracking-tighter leading-none">{dayData.score}</span>
-                                <span className="text-[10px] opacity-70 font-medium tracking-wider">POINT</span>
+                                {dayData.hasEvaluation ? (
+                                    <>
+                                        <span className="text-3xl font-bold tracking-tighter leading-none">{dayData.score}</span>
+                                        <span className="text-[10px] opacity-70 font-medium tracking-wider">POINT</span>
+                                    </>
+                                ) : (
+                                    <span className="text-xs text-gray-400 font-medium opacity-50">-</span>
+                                )}
                             </div>
 
                             {/* 下部: 歩数 */}
