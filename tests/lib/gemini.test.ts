@@ -50,7 +50,7 @@ describe("generateDailyPrompt", () => {
     expect(prompt).toContain("300 kcal");
     expect(prompt).toContain("パン");
     expect(prompt).toContain("たんぱく質: 10g");
-    expect(prompt).toContain("筋トレなしの日の栄養戦略");
+    expect(prompt).toContain("活動量");
   });
 
   it("筋トレデータがある場合はプロンプトに含まれる", async () => {
@@ -73,7 +73,7 @@ describe("generateDailyPrompt", () => {
 
     expect(prompt).toContain("Bench Press");
     expect(prompt).toContain("胸トレ");
-    expect(prompt).toContain("筋トレ内容を踏まえた栄養面のアドバイス");
+    expect(prompt).toContain("漸進性過負荷");
   });
 
   it("PFC の残り量が正しく計算される", async () => {
