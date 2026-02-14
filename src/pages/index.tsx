@@ -66,10 +66,11 @@ export default function Home() {
             }
 
             // 3. 最新のAI評価
-            const resEval = await fetch('/api/gemini/latest');
+            const resEval = await fetch('/api/ai/history?limit=1');
             if (resEval.ok) {
                 const data = await resEval.json();
-                setLatestEval(data);
+                const ev = data.evaluations?.[0];
+                if (ev) setLatestEval({ date: ev.date, response: ev.response, model: ev.model });
             }
 
             // 4. 同期ステータス
@@ -94,12 +95,14 @@ export default function Home() {
         setSyncing(true);
         setSyncResult(null);
         try {
-            const res = await fetch("/api/sync/asken", { method: "POST" });
+            const res = await fetch("/api/sync", { method: "POST" });
             const data = await res.json();
+            const errors = data.errors || [];
+            if (!res.ok && data.error) errors.push(data.error);
             setSyncResult({
-                askenCount: data.asken?.count || 0,
-                strongCount: data.strong?.count || 0,
-                errors: data.errors || [],
+                askenCount: data.askenCount ?? 0,
+                strongCount: data.strongCount ?? 0,
+                errors,
             });
             fetchData();
         } catch (e) {
@@ -114,18 +117,18 @@ export default function Home() {
         setEvaluating(true);
         setEvalError(null);
         try {
-            const res = await fetch("/api/gemini/evaluate", { method: "POST" });
-            if (!res.ok) {
-                const err = await res.json();
-                throw new Error(err.error || "Evaluation failed");
-            }
-            const data = await res.json();
-            // 最新評価を更新
-            setLatestEval({
-                date: data.date,
-                response: data.response,
-                model: data.model,
+            const res = await fetch("/api/ai/evaluate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ type: "daily", trigger: "manual" }),
             });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.error || "Evaluation failed");
+            // 最新評価を更新（APIは { success, evaluation } を返す）
+            if (data.success && data.evaluation) {
+                const ev = data.evaluation;
+                setLatestEval({ date: ev.date, response: ev.response, model: ev.model });
+            }
         } catch (e: any) {
             setEvalError(e.message);
         } finally {

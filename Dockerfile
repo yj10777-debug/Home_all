@@ -8,7 +8,9 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
-RUN npm ci
+# postinstall (prisma generate) は schema.prisma が必要なため、ここではスキップ。
+# ビルダーステージで schema をコピーした後に prisma generate を実行する。
+RUN npm ci --ignore-scripts
 
 # ─── Stage 2: ビルド ──────────────────────────────
 FROM node:20-slim AS builder
