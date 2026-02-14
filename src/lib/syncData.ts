@@ -15,7 +15,8 @@ const ASKEN_STATE_FILE = path.join(SECRETS_DIR, "asken-state.json");
 
 type AskenItem = { mealType: string; name: string; amount: string; calories: number };
 type AskenNutrients = Record<string, Record<string, string>>;
-type AskenDayResult = { date: string; items: AskenItem[]; nutrients: Partial<Record<string, Record<string, string>>> };
+type AskenExercise = { steps: number; calories: number };
+type AskenDayResult = { date: string; items: AskenItem[]; nutrients: Partial<Record<string, Record<string, string>>>; exercise?: AskenExercise };
 
 type StrongExercise = { name: string; sets: number; volumeKg: number };
 type StrongWorkout = { title: string; totals: { sets: number; reps: number; volumeKg: number }; exercises: StrongExercise[] };
@@ -247,11 +248,15 @@ export async function syncData(options?: { from?: string; to?: string }): Promis
           update: {
             askenItems: result.data.items as unknown as Prisma.InputJsonValue,
             askenNutrients: result.data.nutrients as unknown as Prisma.InputJsonValue,
+            steps: result.data.exercise?.steps ?? null,
+            exerciseCalories: result.data.exercise?.calories ?? null,
           },
           create: {
             date: d,
             askenItems: result.data.items as unknown as Prisma.InputJsonValue,
             askenNutrients: result.data.nutrients as unknown as Prisma.InputJsonValue,
+            steps: result.data.exercise?.steps ?? null,
+            exerciseCalories: result.data.exercise?.calories ?? null,
           },
         });
         askenCount += 1;
@@ -269,11 +274,15 @@ export async function syncData(options?: { from?: string; to?: string }): Promis
             update: {
               askenItems: fileData.items as unknown as Prisma.InputJsonValue,
               askenNutrients: fileData.nutrients as unknown as Prisma.InputJsonValue,
+              steps: fileData.exercise?.steps ?? null,
+              exerciseCalories: fileData.exercise?.calories ?? null,
             },
             create: {
               date: d,
               askenItems: fileData.items as unknown as Prisma.InputJsonValue,
               askenNutrients: fileData.nutrients as unknown as Prisma.InputJsonValue,
+              steps: fileData.exercise?.steps ?? null,
+              exerciseCalories: fileData.exercise?.calories ?? null,
             },
           });
           askenCount += 1;

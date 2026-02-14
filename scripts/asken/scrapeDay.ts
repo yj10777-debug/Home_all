@@ -1,7 +1,7 @@
 import { chromium, BrowserContext } from 'playwright';
 import path from 'path';
 import fs from 'fs';
-import type { ScrapedItem } from './types';
+import type { ScrapedItem, ExerciseData } from './types';
 
 const PROJECT_ROOT = process.cwd();
 const SECRETS_DIR = path.join(PROJECT_ROOT, 'secrets');
@@ -17,7 +17,13 @@ const MEAL_BLOCKS = [
     { id: 'karute_report_snack', mealType: '間食' }, // Fallback for extra stacks
 ] as const;
 
-export async function scrapeDay(dateStr: string, existingContext?: BrowserContext): Promise<ScrapedItem[]> {
+/** スクレイピング結果 */
+export type ScrapeDayResult = {
+    items: ScrapedItem[];
+    exercise?: ExerciseData;
+};
+
+export async function scrapeDay(dateStr: string, existingContext?: BrowserContext): Promise<ScrapeDayResult> {
     let browser = null;
     let context = existingContext;
     let page = null;
@@ -79,7 +85,25 @@ export async function scrapeDay(dateStr: string, existingContext?: BrowserContex
             return results;
         }, MEAL_BLOCKS);
 
-        return items;
+        // 運動セクションから歩数・消費カロリーを取得
+        const exercise = await page.evaluate(() => {
+            const el = document.getElementById('karute_report_exercise');
+            if (!el) return null;
+            const text = el.innerText || '';
+            // 「歩数 10445歩 550kcal」のようなパターンを抽出
+            const stepsMatch = text.match(/(\d[\d,]*)\s*歩/);
+            const calMatch = text.match(/(\d+)\s*kcal/i);
+            if (!stepsMatch) return null;
+            return {
+                steps: parseInt(stepsMatch[1].replace(/,/g, ''), 10),
+                calories: calMatch ? parseInt(calMatch[1], 10) : 0,
+            };
+        }) as ExerciseData | null;
+
+        return {
+            items,
+            exercise: exercise ?? undefined,
+        };
 
     } catch (err) {
         console.error(`Scrape error (${dateStr}):`, err);

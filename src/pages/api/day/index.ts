@@ -38,6 +38,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       };
     }
 
+    // 歩数・運動消費カロリー
+    if (daily.steps != null) data.steps = daily.steps;
+    if (daily.exerciseCalories != null) data.exerciseCalories = daily.exerciseCalories;
+
     return res.status(200).json(data);
   } catch (err) {
     console.error("GET /api/day error:", err);

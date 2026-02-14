@@ -42,6 +42,8 @@ export default function Home() {
     const [todayCalories, setTodayCalories] = useState(0);
     const [todayPfc, setTodayPfc] = useState<PfcTotals>({ ...INITIAL_PFC });
     const [hasPfcData, setHasPfcData] = useState(false);
+    const [todaySteps, setTodaySteps] = useState<number | null>(null);
+    const [todayExerciseCal, setTodayExerciseCal] = useState<number | null>(null);
 
     // 同期ステータス
     const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
@@ -103,10 +105,13 @@ export default function Home() {
                         setTodayPfc(computePfcTotals(nutrients));
                         foundPfc = true;
                     } else { setTodayPfc({ ...INITIAL_PFC }); }
-                } else { setTodayPfc({ ...INITIAL_PFC }); }
-            } catch { setTodayPfc({ ...INITIAL_PFC }); }
+                    // 歩数データ
+                    setTodaySteps(dayData?.steps ?? null);
+                    setTodayExerciseCal(dayData?.exerciseCalories ?? null);
+                } else { setTodayPfc({ ...INITIAL_PFC }); setTodaySteps(null); setTodayExerciseCal(null); }
+            } catch { setTodayPfc({ ...INITIAL_PFC }); setTodaySteps(null); setTodayExerciseCal(null); }
             setHasPfcData(foundPfc);
-        } catch { setWeeklyData([]); setTodayCalories(0); setTodayPfc({ ...INITIAL_PFC }); setHasPfcData(false); }
+        } catch { setWeeklyData([]); setTodayCalories(0); setTodayPfc({ ...INITIAL_PFC }); setHasPfcData(false); setTodaySteps(null); setTodayExerciseCal(null); }
         finally { setLoading(false); }
     };
 
@@ -230,8 +235,8 @@ export default function Home() {
         return (
             <div className="relative inline-flex items-center justify-center">
                 <svg width={size} height={size} className="-rotate-90">
-                    <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#F3F4F6" strokeWidth={sw} />
-                    <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={isOverGoal ? "#EF4444" : "#10B981"} strokeWidth={sw} strokeLinecap="round" strokeDasharray={c} strokeDashoffset={o} className="transition-all duration-700 ease-out" />
+                    <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#F3F4F6" strokeWidth={sw} />
+                    <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={isOverGoal ? "#EF4444" : "#10B981"} strokeWidth={sw} strokeLinecap="round" strokeDasharray={c} strokeDashoffset={o} className="transition-all duration-700 ease-out" />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                     <span className="text-2xl font-bold text-gray-900">{todayCalories.toLocaleString()}</span>
@@ -274,9 +279,8 @@ export default function Home() {
                                 <div className="flex-1 pt-2">
                                     <div className="flex items-center justify-between mb-2">
                                         <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">今日のカロリー</h3>
-                                        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                                            isOverGoal ? 'bg-red-50 text-red-600' : remaining < 300 ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'
-                                        }`}>
+                                        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${isOverGoal ? 'bg-red-50 text-red-600' : remaining < 300 ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'
+                                            }`}>
                                             {isOverGoal ? `${todayCalories - GOAL_CALORIES} 超過` : `残り ${remaining}`}
                                         </span>
                                     </div>
@@ -328,6 +332,27 @@ export default function Home() {
                                 })}
                             </div>
                         </div>
+
+                        {/* 歩数 */}
+                        {todaySteps != null && (
+                            <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-lg">🚶</span>
+                                        <div>
+                                            <p className="text-[10px] text-gray-400 uppercase tracking-wider">歩数</p>
+                                            <p className="text-lg font-bold text-gray-900">{todaySteps.toLocaleString()} <span className="text-xs font-normal text-gray-400">歩</span></p>
+                                        </div>
+                                    </div>
+                                    {todayExerciseCal != null && todayExerciseCal > 0 && (
+                                        <div className="text-right">
+                                            <p className="text-[10px] text-gray-400">消費</p>
+                                            <p className="text-sm font-semibold text-orange-500">{todayExerciseCal} kcal</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* チャート（右） */}

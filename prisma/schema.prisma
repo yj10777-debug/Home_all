@@ -69,6 +69,11 @@ model DailyData {
   /// Strong 筋トレデータ (JSON)
   strongData     Json?  // { workouts: [...], totals: { ... } }
   
+  /// 歩数 (あすけんヘルスケア連携)
+  steps              Int?
+  /// 運動消費カロリー (kcal)
+  exerciseCalories   Float?
+  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

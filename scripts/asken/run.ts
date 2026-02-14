@@ -102,7 +102,7 @@ async function run() {
         }
 
         // スクレイピング実行
-        const items = await scrapeDay(targetDate, context);
+        const { items, exercise } = await scrapeDay(targetDate, context);
 
         const getNutrients = async (mealType: AdviceMealType) => {
             try {
@@ -125,6 +125,7 @@ async function run() {
                 昼食: lunch,
                 夕食: dinner,
             },
+            exercise,
         };
 
         // stdout に出力

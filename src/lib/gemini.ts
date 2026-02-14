@@ -35,6 +35,8 @@ type DayData = {
   askenItems: AskenItem[] | null;
   askenNutrients: AskenNutrients | null;
   strongData: StrongData | null;
+  steps: number | null;
+  exerciseCalories: number | null;
 };
 
 /** PFC 合計値 */
@@ -62,6 +64,8 @@ async function loadDayData(dateStr: string): Promise<DayData | null> {
     askenItems: record.askenItems as AskenItem[] | null,
     askenNutrients: record.askenNutrients as AskenNutrients | null,
     strongData: record.strongData as StrongData | null,
+    steps: record.steps ?? null,
+    exerciseCalories: record.exerciseCalories ?? null,
   };
 }
 
@@ -230,6 +234,10 @@ ${mealText}
 
 ## 筋トレ内容
 ${workoutText}
+
+## 運動・歩数
+${dayData.steps != null ? `- 歩数: ${dayData.steps.toLocaleString()} 歩` : "- 歩数データなし"}
+${dayData.exerciseCalories != null && dayData.exerciseCalories > 0 ? `- 運動消費カロリー: ${dayData.exerciseCalories} kcal` : ""}
 
 ## 回答ルール
 1. まず今日の食事とPFCバランスを簡潔に評価（良い点・改善点）
