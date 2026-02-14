@@ -1,282 +1,192 @@
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import Head from 'next/head';
-import { useRouter } from 'next/router';
-import { WeeklyCaloriesChart } from '../components/WeeklyCaloriesChart';
-import { format, formatDistanceToNow } from 'date-fns';
-import { ja } from 'date-fns/locale';
-import { getEffectiveToday, getEffectiveTodayStr } from '../lib/dateUtils';
+import { useState, useEffect, useCallback } from "react";
+import Head from "next/head";
+import Link from "next/link";
+import { format, formatDistanceToNow, parseISO } from "date-fns";
+import { ja } from "date-fns/locale";
 
-type WeeklyData = { date: string; calories: number };
-type PfcKey = "protein" | "fat" | "carbs";
-type PfcTotals = Record<PfcKey, number>;
+import MonthCalendar from "../components/MonthCalendar";
 
-const INITIAL_PFC: PfcTotals = { protein: 0, fat: 0, carbs: 0 };
 const GOAL_CALORIES = 2267;
-const GOAL_PFC: Readonly<PfcTotals> = { protein: 150, fat: 54, carbs: 293 };
+const GOAL_PFC = { protein: 150, fat: 54, carbs: 293 };
 
-const PFC_TARGETS = [
-    { key: "protein" as const, label: "P", name: "たんぱく質", color: "#8B5CF6", bgColor: "bg-violet-500" },
-    { key: "fat" as const, label: "F", name: "脂質", color: "#F59E0B", bgColor: "bg-amber-500" },
-    { key: "carbs" as const, label: "C", name: "炭水化物", color: "#3B82F6", bgColor: "bg-blue-500" },
-] as const;
+type PfcData = { protein: number; fat: number; carbs: number };
+type PfcTarget = { key: keyof PfcData; label: string; name: string; color: string; bgColor: string };
 
-/** 同期ステータス */
-type SyncStatus = {
-    lastSync: {
-        timestamp: string;
-        askenCount: number;
-        strongCount: number;
-        dayCount: number;
-        errors: string[];
-    } | null;
-    schedule: string;
-    googleDriveConfigured: boolean;
-    askenConfigured: boolean;
-};
+const PFC_TARGETS: PfcTarget[] = [
+    { key: "protein", label: "P", name: "たんぱく質", color: "#F59E0B", bgColor: "bg-amber-500" },
+    { key: "fat", label: "F", name: "脂質", color: "#EF4444", bgColor: "bg-red-500" },
+    { key: "carbs", label: "C", name: "炭水化物", color: "#3B82F6", bgColor: "bg-blue-500" },
+];
 
 export default function Home() {
-    const router = useRouter();
-    const [weeklyData, setWeeklyData] = useState<WeeklyData[]>([]);
-    const [loading, setLoading] = useState(true);
     const [todayCalories, setTodayCalories] = useState(0);
-    const [todayPfc, setTodayPfc] = useState<PfcTotals>({ ...INITIAL_PFC });
+    const [todayPfc, setTodayPfc] = useState<PfcData>({ protein: 0, fat: 0, carbs: 0 });
     const [hasPfcData, setHasPfcData] = useState(false);
     const [todaySteps, setTodaySteps] = useState<number | null>(null);
     const [todayExerciseCal, setTodayExerciseCal] = useState<number | null>(null);
 
-    // 同期ステータス
-    const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
+    const [calendarData, setCalendarData] = useState<any[]>([]);
 
-    // あすけん手動同期
-    const [syncing, setSyncing] = useState(false);
-    const [syncResult, setSyncResult] = useState<{ askenCount: number; strongCount: number; dayCount: number; errors: string[] } | null>(null);
-
-    // AI評価
+    const [latestEval, setLatestEval] = useState<{ date: string; response: string; model: string } | null>(null);
     const [evaluating, setEvaluating] = useState(false);
-    const [latestEval, setLatestEval] = useState<{ date: string; response: string; model: string; createdAt: string } | null>(null);
     const [evalError, setEvalError] = useState<string | null>(null);
 
-    const parseNumericValue = (value: unknown): number => {
-        if (typeof value !== "string") return 0;
-        const match = value.match(/[\d.]+/);
-        return match ? parseFloat(match[0]) : 0;
-    };
+    const [loading, setLoading] = useState(true);
+    const [syncing, setSyncing] = useState(false);
+    const [syncResult, setSyncResult] = useState<{ askenCount: number; strongCount: number; errors: string[] } | null>(null);
+    const [syncStatus, setSyncStatus] = useState<{ schedule: string; lastSync: { timestamp: string; askenCount: number; strongCount: number } | null } | null>(null);
 
-    const computePfcTotals = (nutrients?: Record<string, Record<string, string>>): PfcTotals => {
-        const totals: PfcTotals = { ...INITIAL_PFC };
-        if (!nutrients) return totals;
-        for (const meal of Object.values(nutrients)) {
-            if (!meal) continue;
-            const hasCarb = Object.prototype.hasOwnProperty.call(meal, "炭水化物");
-            for (const [key, raw] of Object.entries(meal)) {
-                const amount = parseNumericValue(raw);
-                if (!amount) continue;
-                if (key === "たんぱく質" || key === "タンパク質") totals.protein += amount;
-                else if (key === "脂質") totals.fat += amount;
-                else if (key === "炭水化物") totals.carbs += amount;
-                else if (key === "糖質" && !hasCarb) totals.carbs += amount;
+    const fetchData = useCallback(async () => {
+        try {
+            // 1. 今日のデータを確認
+            const now = new Date();
+            // 朝5時までは前日扱い
+            if (now.getHours() < 5) now.setDate(now.getDate() - 1);
+            const todayStr = format(now, "yyyy-MM-dd");
+
+            const resDay = await fetch(`/api/day/${todayStr}`);
+            if (resDay.ok) {
+                const data = await resDay.json();
+                setTodayCalories(data.calories);
+                if (data.pfc) {
+                    setTodayPfc(data.pfc);
+                    setHasPfcData(true);
+                } else {
+                    setHasPfcData(false);
+                }
+                setTodaySteps(data.steps ?? null);
+                setTodayExerciseCal(data.exerciseCalories ?? null);
             }
-        }
-        return totals;
-    };
 
-    const fetchData = async () => {
-        setLoading(true);
-        setHasPfcData(false);
-        try {
-            const res = await fetch('/api/stats/weekly-from-day');
-            if (res.ok) {
-                const data = await res.json();
-                setWeeklyData(data);
-                const todayStr = getEffectiveTodayStr();
-                const todayEntry = data.find((d: WeeklyData) => d.date === todayStr);
-                setTodayCalories(todayEntry?.calories || 0);
-            } else { setWeeklyData([]); setTodayCalories(0); }
+            // 2. カレンダー用データ（全日）
+            const resDays = await fetch('/api/days');
+            if (resDays.ok) {
+                const data = await resDays.json();
+                setCalendarData(data.days);
+            }
 
-            const todayStr = getEffectiveTodayStr();
-            let foundPfc = false;
-            try {
-                const dayRes = await fetch(`/api/day?date=${todayStr}`);
-                if (dayRes.ok) {
-                    const dayData = await dayRes.json();
-                    const nutrients = (dayData?.asken?.nutrients ?? dayData?.nutrients) as Record<string, Record<string, string>> | undefined;
-                    if (nutrients && Object.keys(nutrients).length > 0) {
-                        setTodayPfc(computePfcTotals(nutrients));
-                        foundPfc = true;
-                    } else { setTodayPfc({ ...INITIAL_PFC }); }
-                    // 歩数データ
-                    setTodaySteps(dayData?.steps ?? null);
-                    setTodayExerciseCal(dayData?.exerciseCalories ?? null);
-                } else { setTodayPfc({ ...INITIAL_PFC }); setTodaySteps(null); setTodayExerciseCal(null); }
-            } catch { setTodayPfc({ ...INITIAL_PFC }); setTodaySteps(null); setTodayExerciseCal(null); }
-            setHasPfcData(foundPfc);
-        } catch { setWeeklyData([]); setTodayCalories(0); setTodayPfc({ ...INITIAL_PFC }); setHasPfcData(false); setTodaySteps(null); setTodayExerciseCal(null); }
-        finally { setLoading(false); }
-    };
+            // 3. 最新のAI評価
+            const resEval = await fetch('/api/gemini/latest');
+            if (resEval.ok) {
+                const data = await resEval.json();
+                setLatestEval(data);
+            }
 
-    /** 同期ステータスを取得 */
-    const fetchSyncStatus = async () => {
-        try {
-            const res = await fetch('/api/sync/status');
-            if (res.ok) {
-                const data = await res.json();
+            // 4. 同期ステータス
+            const resSync = await fetch('/api/sync/status');
+            if (resSync.ok) {
+                const data = await resSync.json();
                 setSyncStatus(data);
             }
-        } catch {
-            // 静かに失敗
-        }
-    };
 
-    /** あすけん同期を手動実行 */
+        } catch (error) {
+            console.error("Failed to fetch data", error);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
     const handleAskenSync = async () => {
         setSyncing(true);
         setSyncResult(null);
         try {
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 10 * 60 * 1000);
-            const res = await fetch("/api/sync", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({}),
-                signal: controller.signal,
-            });
-            clearTimeout(timeout);
+            const res = await fetch("/api/sync/asken", { method: "POST" });
             const data = await res.json();
-            if (res.ok && data.success) {
-                setSyncResult({ askenCount: data.askenCount ?? 0, strongCount: data.strongCount, dayCount: data.dayCount, errors: data.errors || [] });
-                await fetchData();
-                await fetchSyncStatus();
-            } else {
-                setSyncResult({ askenCount: 0, strongCount: 0, dayCount: 0, errors: [data.error || "取得に失敗しました"] });
-            }
+            setSyncResult({
+                askenCount: data.asken?.count || 0,
+                strongCount: data.strong?.count || 0,
+                errors: data.errors || [],
+            });
+            fetchData();
         } catch (e) {
-            setSyncResult({ askenCount: 0, strongCount: 0, dayCount: 0, errors: [String(e)] });
-        } finally { setSyncing(false); }
+            console.error(e);
+            setSyncResult({ askenCount: 0, strongCount: 0, errors: ["通信エラー"] });
+        } finally {
+            setSyncing(false);
+        }
     };
 
-    /** 最新の AI 評価を取得 */
-    const fetchLatestEval = async () => {
-        try {
-            const todayStr = getEffectiveTodayStr();
-            const res = await fetch(`/api/ai/history?date=${todayStr}&type=daily`);
-            if (res.ok) {
-                const data = await res.json();
-                if (data.evaluations?.length > 0) {
-                    const e = data.evaluations[0];
-                    setLatestEval({ date: e.date, response: e.response, model: e.model, createdAt: e.createdAt });
-                }
-            }
-        } catch { /* 静かに失敗 */ }
-    };
-
-    /** AI 評価を手動実行 */
     const handleEvaluate = async () => {
         setEvaluating(true);
         setEvalError(null);
         try {
-            const todayStr = getEffectiveTodayStr();
-            const res = await fetch("/api/ai/evaluate", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ date: todayStr, type: "daily", trigger: "manual" }),
-            });
+            const res = await fetch("/api/gemini/evaluate", { method: "POST" });
+            if (!res.ok) {
+                const err = await res.json();
+                throw new Error(err.error || "Evaluation failed");
+            }
             const data = await res.json();
-            if (res.ok && data.success) {
-                const e = data.evaluation;
-                setLatestEval({ date: e.date, response: e.response, model: e.model, createdAt: e.createdAt });
-            } else {
-                setEvalError(data.error || "評価に失敗しました");
-            }
-        } catch (e) {
-            setEvalError(e instanceof Error ? e.message : String(e));
-        } finally { setEvaluating(false); }
-    };
-
-    /** チャートのバーがクリックされた時 */
-    const handleBarClick = (date: string) => {
-        router.push(`/day/${date}`);
-    };
-
-    useEffect(() => {
-        fetchData();
-        fetchSyncStatus();
-        fetchLatestEval();
-        // 60秒ごとにステータスを更新
-        const interval = setInterval(fetchSyncStatus, 60000);
-        return () => clearInterval(interval);
-    }, []);
-
-    const remaining = Math.max(0, GOAL_CALORIES - todayCalories);
-    const progress = Math.min(100, (todayCalories / GOAL_CALORIES) * 100);
-    const isOverGoal = todayCalories > GOAL_CALORIES;
-
-    /** cron式を人間が読める形式に変換 */
-    const formatSchedule = (schedule: string): string => {
-        // "0 8,12,19,23 * * *" のような形式をパース
-        const parts = schedule.split(" ");
-        if (parts.length >= 2) {
-            const hours = parts[1];
-            if (hours.includes(",")) {
-                return `毎日 ${hours.split(",").map(h => `${h}:00`).join("・")}`;
-            }
-            return `毎日 ${hours}:00`;
+            // 最新評価を更新
+            setLatestEval({
+                date: data.date,
+                response: data.response,
+                model: data.model,
+            });
+        } catch (e: any) {
+            setEvalError(e.message);
+        } finally {
+            setEvaluating(false);
         }
-        return schedule;
     };
 
-    /** カロリーリング（コンパクト版） */
-    const CalorieRing = () => {
-        const size = 140;
-        const sw = 12;
-        const r = (size - sw) / 2;
-        const c = 2 * Math.PI * r;
-        const o = c - (progress / 100) * c;
-        return (
-            <div className="relative inline-flex items-center justify-center">
-                <svg width={size} height={size} className="-rotate-90">
-                    <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#F3F4F6" strokeWidth={sw} />
-                    <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={isOverGoal ? "#EF4444" : "#10B981"} strokeWidth={sw} strokeLinecap="round" strokeDasharray={c} strokeDashoffset={o} className="transition-all duration-700 ease-out" />
-                </svg>
-                <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-2xl font-bold text-gray-900">{todayCalories.toLocaleString()}</span>
-                    <span className="text-[10px] text-gray-400">/ {GOAL_CALORIES.toLocaleString()} kcal</span>
-                </div>
-            </div>
-        );
+    const isOverGoal = todayCalories > GOAL_CALORIES * 1.1; // 10%許容
+    const remaining = Math.max(0, GOAL_CALORIES - todayCalories);
+
+    // スケジュールフォーマット
+    const formatSchedule = (cron: string) => {
+        if (cron === "0 5,12,19 * * *") return "毎日 5時/12時/19時";
+        return cron;
     };
 
     return (
-        <div className="min-h-screen bg-gray-50 font-sans text-gray-900">
-            <Head><title>Nutrition Tracker</title></Head>
+        <div className="min-h-screen bg-gray-50 pb-20">
+            <Head>
+                <title>Nutrition Dashboard</title>
+                <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+            </Head>
 
-            {/* ヘッダー（コンパクト） */}
-            <header className="bg-white border-b border-gray-200 sticky top-0 z-20">
-                <div className="max-w-7xl mx-auto px-4 py-2.5 flex justify-between items-center">
-                    <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-md flex items-center justify-center">
-                            <span className="text-white text-xs font-bold">N</span>
-                        </div>
-                        <h1 className="text-lg font-bold text-gray-900">Nutrition Tracker</h1>
-                        <span className="text-xs text-gray-400 ml-2 hidden sm:inline">{format(getEffectiveToday(), 'yyyy/M/d')}</span>
-                    </div>
-                    <nav className="flex items-center gap-4">
-                        <Link href="/days" className="text-xs text-gray-500 hover:text-gray-900">履歴</Link>
-                        <Link href="/meals" className="text-xs text-gray-500 hover:text-gray-900">食事一覧</Link>
-                    </nav>
+            <header className="bg-white border-b border-gray-200 sticky top-0 z-10 safe-area-top">
+                <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
+                    <h1 className="text-lg font-bold bg-gradient-to-r from-orange-500 to-red-500 bg-clip-text text-transparent">
+                        Nutrition
+                    </h1>
+                    <Link href="/days" className="text-sm font-medium text-gray-500 hover:text-gray-900 transition-colors">
+                        履歴
+                    </Link>
                 </div>
             </header>
 
-            <main className="max-w-7xl mx-auto px-4 py-4">
-                {/* 上段: カロリー + PFC + チャート */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-4">
-                    {/* カロリー + PFC（左） */}
-                    <div className="lg:col-span-4 flex flex-col gap-4">
-                        {/* カロリーリング + サマリー */}
-                        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+            <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+
+                {/* 上段: 今日のサマリー + カレンダー */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    {/* 今日のサマリー（左） */}
+                    <div className="lg:col-span-4 space-y-4">
+                        {/* カロリー */}
+                        <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm relative overflow-hidden">
                             <div className="flex items-start gap-4">
-                                <CalorieRing />
-                                <div className="flex-1 pt-2">
+                                <div className="relative w-20 h-20 flex-shrink-0">
+                                    <svg className="w-full h-full transform -rotate-90">
+                                        <circle cx="40" cy="40" r="36" stroke="#f3f4f6" strokeWidth="8" fill="none" />
+                                        <circle
+                                            cx="40" cy="40" r="36"
+                                            stroke={isOverGoal ? "#ef4444" : "#10b981"}
+                                            strokeWidth="8" fill="none"
+                                            strokeDasharray={226}
+                                            strokeDashoffset={226 - Math.min(226, (todayCalories / GOAL_CALORIES) * 226)}
+                                            className="transition-all duration-1000 ease-out"
+                                        />
+                                    </svg>
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                        <span className="text-[10px] text-gray-400">Total</span>
+                                        <span className="text-sm font-bold text-gray-800">{todayCalories}</span>
+                                    </div>
+                                </div>
+                                <div className="flex-1 min-w-0">
                                     <div className="flex items-center justify-between mb-2">
                                         <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">今日のカロリー</h3>
                                         <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${isOverGoal ? 'bg-red-50 text-red-600' : remaining < 300 ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600'
@@ -355,13 +265,13 @@ export default function Home() {
                         )}
                     </div>
 
-                    {/* チャート（右） */}
+                    {/* カレンダー（右） */}
                     <div className="lg:col-span-8">
-                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm h-full">
+                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm h-full p-4">
                             {loading ? (
-                                <div className="h-[280px] w-full bg-gray-100 animate-pulse rounded-xl" />
+                                <div className="h-[600px] w-full bg-gray-100 animate-pulse rounded-xl" />
                             ) : (
-                                <WeeklyCaloriesChart data={weeklyData} goal={GOAL_CALORIES} onBarClick={handleBarClick} />
+                                <MonthCalendar days={calendarData} />
                             )}
                         </div>
                     </div>

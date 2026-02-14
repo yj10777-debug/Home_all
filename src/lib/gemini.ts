@@ -3,7 +3,7 @@ import { prisma } from "./prisma";
 // ─── 型定義 ───────────────────────────────────────────
 
 /** あすけんの食事アイテム */
-type AskenItem = {
+export type AskenItem = {
   mealType: string;
   name: string;
   amount: string;
@@ -11,7 +11,7 @@ type AskenItem = {
 };
 
 /** あすけんの栄養素（食事タイプ別） */
-type AskenNutrients = Record<string, Record<string, string>>;
+export type AskenNutrients = Record<string, Record<string, string>>;
 
 /** 筋トレの種目 */
 type StrongExercise = { name: string; sets: number; volumeKg: number };
@@ -24,13 +24,13 @@ type StrongWorkout = {
 };
 
 /** 筋トレデータ */
-type StrongData = {
+export type StrongData = {
   workouts: StrongWorkout[];
   totals: { workouts: number; sets: number; volumeKg: number };
 };
 
 /** DB から取得した日次データの構造 */
-type DayData = {
+export type DayData = {
   date: string;
   askenItems: AskenItem[] | null;
   askenNutrients: AskenNutrients | null;
@@ -40,12 +40,12 @@ type DayData = {
 };
 
 /** PFC 合計値 */
-type PfcTotals = { protein: number; fat: number; carbs: number };
+export type PfcTotals = { protein: number; fat: number; carbs: number };
 
 // ─── 定数 ─────────────────────────────────────────────
 
-const GOAL_CALORIES = 2267;
-const GOAL_PFC: Readonly<PfcTotals> = {
+export const GOAL_CALORIES = 2267;
+export const GOAL_PFC: Readonly<PfcTotals> = {
   protein: 150,
   fat: 54,
   carbs: 293,

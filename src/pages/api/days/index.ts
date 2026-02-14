@@ -1,5 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../lib/prisma";
+import { calculateDailyScore } from "../../../lib/scoring";
+import type { DayData, AskenItem, AskenNutrients, StrongData } from "../../../lib/gemini";
 
 /**
  * 日付一覧取得エンドポイント
@@ -28,9 +30,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     type DaySummary = {
       date: string;
       calories: number;
+      pfc: { p: number; f: number; c: number };
       steps: number | null;
       exerciseCalories: number | null;
       hasStrong: boolean;
+      score: number;
     };
 
     const parseNumeric = (v: string) => {
@@ -39,33 +43,54 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     };
 
     const days: DaySummary[] = records.map((r) => {
-      // カロリー計算（nutrientsのエネルギー合計 + nutrientsにない食事タイプのitemsカロリー）
+      // カロリー・PFC計算
       let calories = 0;
+      let p = 0, f = 0, c = 0;
+
       const nutrientMealTypes = new Set<string>();
-      const nutrients = r.askenNutrients as Record<string, Record<string, string>> | null;
+      const nutrients = r.askenNutrients as AskenNutrients | null;
+
       if (nutrients) {
         for (const [mealType, meal] of Object.entries(nutrients)) {
           if (!meal) continue;
           nutrientMealTypes.add(mealType);
-          const energy = meal["エネルギー"];
-          if (energy) calories += parseNumeric(energy);
+          if (meal["エネルギー"]) calories += parseNumeric(meal["エネルギー"]);
+          if (meal["たんぱく質"]) p += parseNumeric(meal["たんぱく質"]);
+          if (meal["脂質"]) f += parseNumeric(meal["脂質"]);
+          if (meal["炭水化物"]) c += parseNumeric(meal["炭水化物"]);
         }
       }
-      const items = r.askenItems as Array<{ mealType: string; calories: number }> | null;
+
+      const items = r.askenItems as AskenItem[] | null;
       if (items) {
         for (const item of items) {
           if (!nutrientMealTypes.has(item.mealType)) {
             calories += item.calories;
+            // itemsにはPFC情報がないため加算できない（カロリーのみ）
           }
         }
       }
 
+      // スコア計算のために DayData 型を作成
+      const dayData: DayData = {
+        date: r.date,
+        askenItems: items,
+        askenNutrients: nutrients,
+        strongData: r.strongData as StrongData | null,
+        steps: r.steps ?? null,
+        exerciseCalories: r.exerciseCalories ?? null,
+      };
+
+      const scoreResult = calculateDailyScore(dayData);
+
       return {
         date: r.date,
         calories: Math.round(calories),
+        pfc: { p: Math.round(p), f: Math.round(f), c: Math.round(c) },
         steps: r.steps,
         exerciseCalories: r.exerciseCalories,
         hasStrong: !!r.strongData,
+        score: scoreResult.total,
       };
     });
 
