@@ -1,10 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
 import Head from "next/head";
 import Link from "next/link";
-import { format, formatDistanceToNow, parseISO } from "date-fns";
+import dynamic from "next/dynamic";
+import { format, formatDistanceToNow } from "date-fns";
 import { ja } from "date-fns/locale";
 
-import MonthCalendar from "../components/MonthCalendar";
+// 日付表示でハイドレーション不整合を防ぐため、カレンダーはクライアントのみでレンダー
+const MonthCalendar = dynamic(() => import("../components/MonthCalendar"), {
+    ssr: false,
+    loading: () => <div className="h-[600px] w-full bg-gray-100 animate-pulse rounded-xl" />,
+});
 
 const GOAL_CALORIES = 2267;
 const GOAL_PFC = { protein: 150, fat: 54, carbs: 293 };
@@ -32,9 +37,14 @@ export default function Home() {
     const [evalError, setEvalError] = useState<string | null>(null);
 
     const [loading, setLoading] = useState(true);
+    const [mounted, setMounted] = useState(false); // ハイドレーション対策: 日付表示はクライアントのみ
     const [syncing, setSyncing] = useState(false);
     const [syncResult, setSyncResult] = useState<{ askenCount: number; strongCount: number; errors: string[] } | null>(null);
     const [syncStatus, setSyncStatus] = useState<{ schedule: string; lastSync: { timestamp: string; askenCount: number; strongCount: number } | null } | null>(null);
+
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     const fetchData = useCallback(async () => {
         try {
@@ -143,6 +153,18 @@ export default function Home() {
     const formatSchedule = (cron: string) => {
         if (cron === "0 5,12,19 * * *") return "毎日 5時/12時/19時";
         return cron;
+    };
+
+    // 相対時間表示（不正日付・ハイドレーション対策）
+    const formatRelativeTime = (timestamp: string): string => {
+        if (!mounted) return ""; // 初回レンダーでは空（SSR/ハイドレーション時の不一致を防ぐ）
+        try {
+            const d = new Date(timestamp);
+            if (isNaN(d.getTime())) return "";
+            return formatDistanceToNow(d, { addSuffix: true, locale: ja });
+        } catch {
+            return "";
+        }
     };
 
     return (
@@ -317,8 +339,8 @@ export default function Home() {
                                     <span className="text-[10px] text-gray-400">{formatSchedule(syncStatus.schedule)}</span>
                                 </div>
                                 {syncStatus.lastSync && (
-                                    <p className="text-[10px] text-gray-500">
-                                        最終: {formatDistanceToNow(new Date(syncStatus.lastSync.timestamp), { addSuffix: true, locale: ja })}
+                                    <p className="text-[10px] text-gray-500" suppressHydrationWarning>
+                                        最終: {formatRelativeTime(syncStatus.lastSync.timestamp)}
                                         <span className="text-gray-400 ml-1">
                                             (あすけん {syncStatus.lastSync.askenCount}日 / Strong {syncStatus.lastSync.strongCount}日)
                                         </span>
