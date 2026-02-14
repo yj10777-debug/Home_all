@@ -24,17 +24,14 @@ type StrongDayData = { workouts: StrongWorkout[]; totals: { workouts: number; se
 
 // ─── ユーティリティ ─────────────────────────────────
 
-/** 同期のデフォルト取得日数（直近N日分） */
-const DEFAULT_SYNC_DAYS = 60;
-
 /**
  * 日付範囲を生成する
- * @param from 開始日 (YYYY-MM-DD)。省略時は today-60
+ * @param from 開始日 (YYYY-MM-DD)。省略時は today-3
  * @param to 終了日 (YYYY-MM-DD)。省略時は today
  */
 function getTargetDates(from?: string, to?: string): string[] {
   const endDate = to ? new Date(to + "T00:00:00") : getEffectiveToday();
-  const startDate = from ? new Date(from + "T00:00:00") : subDays(endDate, DEFAULT_SYNC_DAYS);
+  const startDate = from ? new Date(from + "T00:00:00") : subDays(endDate, 3);
   const dates: string[] = [];
   const current = new Date(startDate);
   while (current <= endDate) {
