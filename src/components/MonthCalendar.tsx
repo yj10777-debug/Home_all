@@ -20,6 +20,10 @@ type Props = {
 export default function MonthCalendar({ days, initialMonth = new Date() }: Props) {
     const [currentMonth, setCurrentMonth] = useState(initialMonth);
 
+    if (!days) {
+        return <div className="h-full flex items-center justify-center text-gray-400 text-sm">データ読み込み中...</div>;
+    }
+
     // 日付文字列(YYYY-MM-DD)をキーにしたマップを作成
     const daysMap = new Map<string, CalendarDay>();
     days.forEach(d => daysMap.set(d.date, d));

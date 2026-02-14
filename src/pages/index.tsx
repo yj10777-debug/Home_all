@@ -62,7 +62,7 @@ export default function Home() {
             const resDays = await fetch('/api/days');
             if (resDays.ok) {
                 const data = await resDays.json();
-                setCalendarData(data.days);
+                setCalendarData(Array.isArray(data.days) ? data.days : []);
             }
 
             // 3. 最新のAI評価
