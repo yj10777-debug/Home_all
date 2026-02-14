@@ -14,7 +14,6 @@ const ASKEN_STATE_FILE = path.join(SECRETS_DIR, "asken-state.json");
 // ─── 型定義 ─────────────────────────────────────────
 
 type AskenItem = { mealType: string; name: string; amount: string; calories: number };
-type AskenNutrients = Record<string, Record<string, string>>;
 type AskenExercise = { steps: number; calories: number };
 type AskenDayResult = { date: string; items: AskenItem[]; nutrients: Partial<Record<string, Record<string, string>>>; exercise?: AskenExercise };
 
@@ -238,27 +237,26 @@ export async function syncData(options?: { from?: string; to?: string }): Promis
   const dateRange = new Set(targetDates);
 
   // あすけんデータ取得 → DB に upsert
+  const upsertAskenDay = async (date: string, data: AskenDayResult) => {
+    const payload = {
+      askenItems: data.items as unknown as Prisma.InputJsonValue,
+      askenNutrients: data.nutrients as unknown as Prisma.InputJsonValue,
+      steps: data.exercise?.steps ?? null,
+      exerciseCalories: data.exercise?.calories ?? null,
+    };
+    await prisma.dailyData.upsert({
+      where: { date },
+      update: payload,
+      create: { date, ...payload },
+    });
+  };
+
   let askenCount = 0;
   for (const d of targetDates) {
     const result = await runAskenForDate(d);
     if (result.ok && result.data) {
       try {
-        await prisma.dailyData.upsert({
-          where: { date: d },
-          update: {
-            askenItems: result.data.items as unknown as Prisma.InputJsonValue,
-            askenNutrients: result.data.nutrients as unknown as Prisma.InputJsonValue,
-            steps: result.data.exercise?.steps ?? null,
-            exerciseCalories: result.data.exercise?.calories ?? null,
-          },
-          create: {
-            date: d,
-            askenItems: result.data.items as unknown as Prisma.InputJsonValue,
-            askenNutrients: result.data.nutrients as unknown as Prisma.InputJsonValue,
-            steps: result.data.exercise?.steps ?? null,
-            exerciseCalories: result.data.exercise?.calories ?? null,
-          },
-        });
+        await upsertAskenDay(d, result.data);
         askenCount += 1;
       } catch (e) {
         errors.push(`DB保存 Asken ${d}: ${String(e)}`);
@@ -269,22 +267,7 @@ export async function syncData(options?: { from?: string; to?: string }): Promis
       if (fs.existsSync(jsonPath)) {
         try {
           const fileData = JSON.parse(fs.readFileSync(jsonPath, "utf-8")) as AskenDayResult;
-          await prisma.dailyData.upsert({
-            where: { date: d },
-            update: {
-              askenItems: fileData.items as unknown as Prisma.InputJsonValue,
-              askenNutrients: fileData.nutrients as unknown as Prisma.InputJsonValue,
-              steps: fileData.exercise?.steps ?? null,
-              exerciseCalories: fileData.exercise?.calories ?? null,
-            },
-            create: {
-              date: d,
-              askenItems: fileData.items as unknown as Prisma.InputJsonValue,
-              askenNutrients: fileData.nutrients as unknown as Prisma.InputJsonValue,
-              steps: fileData.exercise?.steps ?? null,
-              exerciseCalories: fileData.exercise?.calories ?? null,
-            },
-          });
+          await upsertAskenDay(d, fileData);
           askenCount += 1;
         } catch (e) {
           errors.push(`DB保存 Asken(file) ${d}: ${String(e)}`);
@@ -298,7 +281,7 @@ export async function syncData(options?: { from?: string; to?: string }): Promis
   // Strong データ取得 → DB に upsert
   // 1) ローカルフォルダがあればそちらから読む
   // 2) なければ Google Drive API から取得
-  const strongPath = process.env.STRONG_DATA_PATH || DEFAULT_STRONG_PATH;
+  const strongPath = DEFAULT_STRONG_PATH;
   let strongMap = new Map<string, StrongDayData>();
 
   console.log(`Strong: パス "${strongPath}" を確認中...`);

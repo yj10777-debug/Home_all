@@ -2,8 +2,9 @@ import { useState, useEffect, useCallback } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { format, formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 import { ja } from "date-fns/locale";
+import { getEffectiveTodayStr } from "../lib/dateUtils";
 
 // 日付表示でハイドレーション不整合を防ぐため、カレンダーはクライアントのみでレンダー
 const MonthCalendar = dynamic(() => import("../components/MonthCalendar"), {
@@ -30,7 +31,7 @@ export default function Home() {
     const [todaySteps, setTodaySteps] = useState<number | null>(null);
     const [todayExerciseCal, setTodayExerciseCal] = useState<number | null>(null);
 
-    const [calendarData, setCalendarData] = useState<any[]>([]);
+    const [calendarData, setCalendarData] = useState<{ date: string; score: number; hasStrong: boolean; hasEvaluation: boolean; steps: number | null; calories: number }[]>([]);
 
     const [latestEval, setLatestEval] = useState<{ date: string; response: string; model: string } | null>(null);
     const [evaluating, setEvaluating] = useState(false);
@@ -48,13 +49,15 @@ export default function Home() {
 
     const fetchData = useCallback(async () => {
         try {
-            // 1. 今日のデータを確認
-            const now = new Date();
-            // 朝5時までは前日扱い
-            if (now.getHours() < 5) now.setDate(now.getDate() - 1);
-            const todayStr = format(now, "yyyy-MM-dd");
+            const todayStr = getEffectiveTodayStr();
 
-            const resDay = await fetch(`/api/day/${todayStr}`);
+            const [resDay, resDays, resEval, resSync] = await Promise.all([
+                fetch(`/api/day/${todayStr}`),
+                fetch('/api/days'),
+                fetch('/api/ai/history?limit=1'),
+                fetch('/api/sync/status'),
+            ]);
+
             if (resDay.ok) {
                 const data = await resDay.json();
                 const cal = typeof data.calories === "number" ? data.calories : 0;
@@ -72,23 +75,17 @@ export default function Home() {
                 setTodayExerciseCal(data.exerciseCalories ?? null);
             }
 
-            // 2. カレンダー用データ（全日）
-            const resDays = await fetch('/api/days');
             if (resDays.ok) {
                 const data = await resDays.json();
                 setCalendarData(Array.isArray(data.days) ? data.days : []);
             }
 
-            // 3. 最新のAI評価
-            const resEval = await fetch('/api/ai/history?limit=1');
             if (resEval.ok) {
                 const data = await resEval.json();
                 const ev = data.evaluations?.[0];
                 if (ev) setLatestEval({ date: ev.date, response: ev.response, model: ev.model });
             }
 
-            // 4. 同期ステータス
-            const resSync = await fetch('/api/sync/status');
             if (resSync.ok) {
                 const data = await resSync.json();
                 setSyncStatus(data);
@@ -118,7 +115,7 @@ export default function Home() {
                 strongCount: data.strongCount ?? 0,
                 errors,
             });
-            fetchData();
+            await fetchData();
         } catch (e) {
             console.error(e);
             setSyncResult({ askenCount: 0, strongCount: 0, errors: ["通信エラー"] });
@@ -143,8 +140,8 @@ export default function Home() {
                 const ev = data.evaluation;
                 setLatestEval({ date: ev.date, response: ev.response, model: ev.model });
             }
-        } catch (e: any) {
-            setEvalError(e.message);
+        } catch (e) {
+            setEvalError(e instanceof Error ? e.message : "不明なエラー");
         } finally {
             setEvaluating(false);
         }
@@ -307,7 +304,7 @@ export default function Home() {
                 </div>
 
                 {/* 下段: あすけん同期 + 自動同期ステータス + AI */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                     {/* あすけん手動同期 */}
                     <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
                         <div className="flex items-center gap-2 mb-3">
