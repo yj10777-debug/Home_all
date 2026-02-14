@@ -10,7 +10,7 @@
  */
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const DEFAULT_MODEL = "gemini-2.0-flash";
+const DEFAULT_MODEL = "gemini-2.5-flash";
 
 /** Gemini にテキストを送信し、回答を取得する */
 export async function callGemini(prompt: string, systemPrompt?: string): Promise<string> {
