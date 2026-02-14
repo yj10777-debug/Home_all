@@ -53,7 +53,7 @@ export default function DayPage() {
 
   useEffect(() => {
     if (!date || typeof date !== "string") return;
-    fetch(`/api/day?date=${date}`)
+    fetch(`/api/day/${date}`)
       .then((r) => {
         if (!r.ok) throw new Error("Not found");
         return r.json();

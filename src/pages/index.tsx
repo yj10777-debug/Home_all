@@ -109,7 +109,14 @@ export default function Home() {
         setSyncing(true);
         setSyncResult(null);
         try {
-            const res = await fetch("/api/sync", { method: "POST" });
+            // 直近60日分を取得（2/12以前のデータも含む）
+            const to = format(new Date(), "yyyy-MM-dd");
+            const from = format(new Date(Date.now() - 60 * 24 * 60 * 60 * 1000), "yyyy-MM-dd");
+            const res = await fetch("/api/sync", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ from, to }),
+            });
             const data = await res.json();
             const errors = data.errors || [];
             if (!res.ok && data.error) errors.push(data.error);

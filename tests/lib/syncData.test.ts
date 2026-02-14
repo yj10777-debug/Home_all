@@ -71,7 +71,8 @@ describe("syncData", () => {
 
     jest.resetModules();
     const { syncData } = await import("@/lib/syncData");
-    const result = await syncData();
+    // テスト用に4日分の範囲を指定（デフォルトは60日で時間がかかるため）
+    const result = await syncData({ from: "2026-02-08", to: "2026-02-11" });
 
     // 4日分すべてに対して spawn が呼ばれること
     expect(mockSpawn).toHaveBeenCalledTimes(4);
@@ -89,7 +90,7 @@ describe("syncData", () => {
 
     jest.resetModules();
     const { syncData } = await import("@/lib/syncData");
-    const result = await syncData();
+    const result = await syncData({ from: "2026-02-08", to: "2026-02-11" });
 
     expect(mockSpawn).toHaveBeenCalledTimes(4);
     expect(result.askenCount).toBe(0);
