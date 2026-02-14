@@ -1,9 +1,15 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../lib/prisma";
+import type { AskenItem, AskenNutrients } from "../../../lib/gemini";
+
+const parseNumeric = (v: string) => {
+  const m = v.match(/[\d.]+/);
+  return m ? parseFloat(m[0]) : 0;
+};
 
 /**
  * 日次データ取得エンドポイント
- * GET /api/day?date=YYYY-MM-DD
+ * GET /api/day/[date] — 指定日のデータを返す（index トップページ用に calories, pfc を含む）
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
@@ -22,8 +28,36 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return res.status(404).json({ error: "Not found" });
     }
 
-    // フロントとの互換性を維持するレスポンス構造
-    const data: Record<string, unknown> = { date };
+    const nutrients = daily.askenNutrients as AskenNutrients | null;
+    const items = daily.askenItems as AskenItem[] | null;
+    let calories = 0;
+    let protein = 0;
+    let fat = 0;
+    let carbs = 0;
+    const nutrientMealTypes = new Set<string>();
+
+    if (nutrients) {
+      for (const [mealType, meal] of Object.entries(nutrients)) {
+        if (!meal) continue;
+        nutrientMealTypes.add(mealType);
+        if (meal["エネルギー"]) calories += parseNumeric(meal["エネルギー"]);
+        if (meal["たんぱく質"]) protein += parseNumeric(meal["たんぱく質"]);
+        if (meal["脂質"]) fat += parseNumeric(meal["脂質"]);
+        if (meal["炭水化物"]) carbs += parseNumeric(meal["炭水化物"]);
+      }
+    }
+    if (items) {
+      for (const item of items) {
+        if (!nutrientMealTypes.has(item.mealType)) calories += item.calories;
+      }
+    }
+
+    const data: Record<string, unknown> = {
+      date,
+      calories: Math.round(calories),
+      pfc: { protein: Math.round(protein), fat: Math.round(fat), carbs: Math.round(carbs) },
+    };
+
     if (daily.askenItems || daily.askenNutrients) {
       data.asken = {
         date,
@@ -37,8 +71,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         ...(daily.strongData as Record<string, unknown>),
       };
     }
-
-    // 歩数・運動消費カロリー
     if (daily.steps != null) data.steps = daily.steps;
     if (daily.exerciseCalories != null) data.exerciseCalories = daily.exerciseCalories;
 

@@ -57,13 +57,17 @@ export default function Home() {
             const resDay = await fetch(`/api/day/${todayStr}`);
             if (resDay.ok) {
                 const data = await resDay.json();
-                setTodayCalories(data.calories);
-                if (data.pfc) {
-                    setTodayPfc(data.pfc);
-                    setHasPfcData(true);
-                } else {
-                    setHasPfcData(false);
-                }
+                const cal = typeof data.calories === "number" ? data.calories : 0;
+                setTodayCalories(cal);
+                const pfc = data.pfc && typeof data.pfc === "object"
+                    ? {
+                        protein: typeof data.pfc.protein === "number" ? data.pfc.protein : 0,
+                        fat: typeof data.pfc.fat === "number" ? data.pfc.fat : 0,
+                        carbs: typeof data.pfc.carbs === "number" ? data.pfc.carbs : 0,
+                    }
+                    : { protein: 0, fat: 0, carbs: 0 };
+                setTodayPfc(pfc);
+                setHasPfcData(!!(data.pfc && (data.pfc.protein > 0 || data.pfc.fat > 0 || data.pfc.carbs > 0)));
                 setTodaySteps(data.steps ?? null);
                 setTodayExerciseCal(data.exerciseCalories ?? null);
             }
