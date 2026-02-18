@@ -262,13 +262,20 @@ export async function syncData(options?: { from?: string; to?: string }): Promis
         errors.push(`DB保存 Asken ${d}: ${String(e)}`);
       }
     } else if (result.ok) {
-      // stdout パースできなかった場合は JSON ファイルからフォールバック
+      // stdout パースできなかった場合: 既存データがある日はファイルで上書きしない
+      // （ファイルは前回取得の古い内容の可能性があり、追加入力後の更新が反映されなくなる）
       const jsonPath = path.join(SECRETS_DIR, `asken-day-${d}.json`);
       if (fs.existsSync(jsonPath)) {
         try {
-          const fileData = JSON.parse(fs.readFileSync(jsonPath, "utf-8")) as AskenDayResult;
-          await upsertAskenDay(d, fileData);
-          askenCount += 1;
+          const existing = await prisma.dailyData.findUnique({ where: { date: d }, select: { date: true } });
+          if (!existing) {
+            // 新規の日付のみファイルから投入（初回取得の取りこぼし対策）
+            const fileData = JSON.parse(fs.readFileSync(jsonPath, "utf-8")) as AskenDayResult;
+            await upsertAskenDay(d, fileData);
+            askenCount += 1;
+          } else {
+            errors.push(`Asken ${d}: 取得結果を取得できませんでした（既存データは上書きしません）`);
+          }
         } catch (e) {
           errors.push(`DB保存 Asken(file) ${d}: ${String(e)}`);
         }
