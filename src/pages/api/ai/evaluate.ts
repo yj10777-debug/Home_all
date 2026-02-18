@@ -25,10 +25,12 @@ export default async function handler(
     date = getEffectiveTodayStr(),
     type = "daily",
     trigger = "manual",
+    systemPrompt,
   } = (req.body ?? {}) as {
     date?: string;
     type?: "daily" | "weekly";
     trigger?: "manual" | "cron";
+    systemPrompt?: string;
   };
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
@@ -38,8 +40,8 @@ export default async function handler(
   try {
     const result =
       type === "weekly"
-        ? await runWeeklyEvaluation(date, trigger)
-        : await runDailyEvaluation(date, trigger);
+        ? await runWeeklyEvaluation(date, trigger, systemPrompt)
+        : await runDailyEvaluation(date, trigger, systemPrompt);
 
     return res.status(200).json({ success: true, evaluation: result });
   } catch (e) {

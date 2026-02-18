@@ -15,9 +15,11 @@ type CalendarDay = {
 type Props = {
     days: CalendarDay[];
     initialMonth?: Date;
+    /** true のときセル高さを小さく表示 */
+    compact?: boolean;
 };
 
-export default function MonthCalendar({ days, initialMonth = new Date() }: Props) {
+export default function MonthCalendar({ days, initialMonth = new Date(), compact = false }: Props) {
     const [currentMonth, setCurrentMonth] = useState(initialMonth);
 
     if (!days) {
@@ -48,31 +50,31 @@ export default function MonthCalendar({ days, initialMonth = new Date() }: Props
 
     return (
         <div className="flex flex-col h-full">
-            {/* ヘッダー: 月切り替え */}
-            <div className="flex items-center justify-between mb-4 px-2">
-                <h3 className="text-xl font-bold text-gray-800">
+            {/* 月ナビ: 中央に月、左右に前後ボタン・今日 */}
+            <div className="flex items-center justify-between mb-4 gap-2">
+                <button type="button" onClick={prevMonth} className="min-w-[44px] min-h-[44px] p-2 rounded-xl transition-colors hover:bg-[var(--bg-page)] text-[var(--text-secondary)] flex items-center justify-center" aria-label="前月">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                </button>
+                <h3 className="text-lg font-bold text-[var(--text-primary)] flex-1 text-center tabular-nums">
                     {format(currentMonth, 'yyyy年 M月', { locale: ja })}
                 </h3>
-                <div className="flex gap-1">
-                    <button onClick={prevMonth} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
-                    </button>
-                    <button onClick={() => setCurrentMonth(new Date())} className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">今日</button>
-                    <button onClick={nextMonth} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500 transition-colors">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                <div className="flex items-center gap-1 min-w-[44px] justify-end">
+                    <button type="button" onClick={() => setCurrentMonth(new Date())} className="min-h-[36px] px-3 text-sm font-medium rounded-lg transition-colors hover:bg-[var(--bg-page)] text-[var(--text-secondary)]">今日</button>
+                    <button type="button" onClick={nextMonth} className="min-w-[44px] min-h-[44px] p-2 rounded-xl transition-colors hover:bg-[var(--bg-page)] text-[var(--text-secondary)] flex items-center justify-center" aria-label="翌月">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                     </button>
                 </div>
             </div>
 
             {/* 曜日ヘッダー */}
-            <div className="grid grid-cols-7 text-center mb-2 text-sm font-semibold text-gray-400">
+            <div className="grid grid-cols-7 text-center mb-2 text-xs font-semibold text-[var(--text-tertiary)]">
                 {['日', '月', '火', '水', '木', '金', '土'].map((dw, i) => (
-                    <div key={i} className={i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : ''}>{dw}</div>
+                    <div key={i} className={i === 0 ? 'text-red-500' : i === 6 ? 'text-blue-500' : ''}>{dw}</div>
                 ))}
             </div>
 
             {/* 日付グリッド */}
-            <div className="grid grid-cols-7 gap-2 flex-1 auto-rows-fr">
+            <div className="grid grid-cols-7 gap-1.5 sm:gap-2 flex-1 auto-rows-fr">
                 {/* 開始曜日のオフセット（空白） */}
                 {[...Array(startDayOfWeek)].map((_, i) => <div key={`empty-${i}`} />)}
 
@@ -82,56 +84,48 @@ export default function MonthCalendar({ days, initialMonth = new Date() }: Props
                     const isTodayDate = isToday(dateObj);
 
                     if (!dayData) {
-                        // データなしの日
                         return (
-                            <div key={dateStr} className={`relative p-2 rounded-xl border border-transparent bg-gray-50/50 min-h-[100px] flex flex-col justify-between ${isTodayDate ? 'ring-2 ring-indigo-400 bg-indigo-50/50' : ''}`}>
-                                <span className={`text-sm ${isTodayDate ? 'font-bold text-indigo-600' : 'text-gray-400'}`}>
+                            <div key={dateStr} className={`relative p-2 rounded-xl ${compact ? 'min-h-[64px] sm:min-h-[72px]' : 'min-h-[100px]'} flex flex-col justify-between ${isTodayDate ? 'ring-2 ring-[var(--accent)] bg-[var(--accent-muted)]' : ''}`} style={{ backgroundColor: 'var(--bg-page)' }}>
+                                <span className={`text-sm ${isTodayDate ? 'font-bold' : ''}`} style={{ color: isTodayDate ? 'var(--accent)' : 'var(--text-tertiary)' }}>
                                     {format(dateObj, 'd')}
                                 </span>
-                                <span className="self-center text-xs text-gray-300">-</span>
+                                <span className="self-center text-xs text-[var(--text-tertiary)]">-</span>
                                 <div className="h-4" />
                             </div>
                         );
                     }
 
-                    // データありの日
                     const scoreColor = dayData.hasEvaluation
                         ? getScoreColor(dayData.score)
-                        : 'text-gray-400 bg-gray-50 border-gray-200';
+                        : 'text-[var(--text-tertiary)] border-[var(--border-card)]';
+                    const scoreBg = dayData.hasEvaluation ? '' : 'bg-[var(--bg-page)]';
 
                     return (
                         <Link
                             href={`/day/${dateStr}`}
                             key={dateStr}
-                            className={`relative p-2 rounded-xl border min-h-[100px] flex flex-col justify-between hover:shadow-lg transition-all transform hover:-translate-y-0.5 group ${scoreColor} ${isTodayDate ? 'ring-2 ring-indigo-500 ring-offset-2' : ''}`}
+                            className={`relative p-2 rounded-xl border ${compact ? 'min-h-[64px] sm:min-h-[72px]' : 'min-h-[88px] sm:min-h-[100px]'} flex flex-col justify-between transition-all hover:shadow-md hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 group ${scoreColor} ${scoreBg} ${isTodayDate ? 'ring-2 ring-[var(--accent)] ring-offset-2' : ''}`}
+                            style={{ borderColor: 'var(--border-card)', boxShadow: 'var(--shadow-card)' }}
                         >
-                            {/* 上部: 日付とマーク */}
-                            <div className="flex justify-between items-start w-full">
-                                <span className={`text-sm font-semibold tracking-tight`}>
-                                    {format(dateObj, 'd')}
-                                </span>
-                                {dayData.hasStrong && <span className="text-sm" title="筋トレ実施">💪</span>}
+                            <div className="flex justify-between items-start w-full flex-shrink-0">
+                                <span className="text-sm font-semibold tabular-nums">{format(dateObj, 'd')}</span>
+                                {dayData.hasStrong && <span className="text-xs opacity-80" title="筋トレ実施">💪</span>}
                             </div>
-
-                            {/* 中央: スコア */}
-                            <div className="flex flex-col items-center justify-center -mt-1">
+                            <div className="flex flex-col items-center justify-center flex-1 min-h-0 py-0.5">
                                 {dayData.hasEvaluation ? (
                                     <>
-                                        <span className="text-3xl font-bold tracking-tighter leading-none">{dayData.score}</span>
-                                        <span className="text-[10px] opacity-70 font-medium tracking-wider">POINT</span>
+                                        <span className="text-2xl sm:text-3xl font-bold tracking-tighter leading-none tabular-nums">{dayData.score}</span>
+                                        <span className="text-[10px] opacity-70 font-medium">pt</span>
                                     </>
                                 ) : (
-                                    <span className="text-xs text-gray-400 font-medium opacity-50">-</span>
+                                    <span className="text-xs text-[var(--text-tertiary)]">-</span>
                                 )}
                             </div>
-
-                            {/* 下部: 歩数 */}
-                            <div className="w-full text-right">
+                            <div className="w-full text-right flex-shrink-0">
                                 {dayData.steps != null && dayData.steps > 0 && (
-                                    <div className="inline-flex items-center gap-1 text-xs font-semibold opacity-90" title={`${dayData.steps.toLocaleString()}歩`}>
-                                        <span className="text-[10px]">👣</span>
-                                        {dayData.steps.toLocaleString()}
-                                    </div>
+                                    <span className="text-[10px] font-medium text-[var(--text-secondary)]">
+                                        {dayData.steps.toLocaleString()}歩
+                                    </span>
                                 )}
                             </div>
                         </Link>

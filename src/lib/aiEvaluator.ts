@@ -21,14 +21,15 @@ export type EvaluationResult = {
  * 日次AI評価を実行し、DBに保存して返す
  * @param dateStr 対象日付 (YYYY-MM-DD)
  * @param trigger 実行トリガー ("manual" | "cron")
+ * @param systemPromptOverride 未指定時は getGemSystemPrompt() を使用
  */
 export async function runDailyEvaluation(
   dateStr: string,
-  trigger: "manual" | "cron"
+  trigger: "manual" | "cron",
+  systemPromptOverride?: string
 ): Promise<EvaluationResult> {
-  // プロンプト生成
   const prompt = await generateDailyPrompt(dateStr);
-  const systemPrompt = getGemSystemPrompt();
+  const systemPrompt = (systemPromptOverride && systemPromptOverride.trim()) ? systemPromptOverride.trim() : getGemSystemPrompt();
   const modelName = getGeminiModelName();
 
   // Gemini API に送信
@@ -61,13 +62,15 @@ export async function runDailyEvaluation(
  * 週次AI評価を実行し、DBに保存して返す
  * @param sundayStr 週の開始日（日曜） (YYYY-MM-DD)
  * @param trigger 実行トリガー ("manual" | "cron")
+ * @param systemPromptOverride 未指定時は getGemSystemPrompt() を使用
  */
 export async function runWeeklyEvaluation(
   sundayStr: string,
-  trigger: "manual" | "cron"
+  trigger: "manual" | "cron",
+  systemPromptOverride?: string
 ): Promise<EvaluationResult> {
   const prompt = await generateWeeklyPrompt(sundayStr);
-  const systemPrompt = getGemSystemPrompt();
+  const systemPrompt = (systemPromptOverride && systemPromptOverride.trim()) ? systemPromptOverride.trim() : getGemSystemPrompt();
   const modelName = getGeminiModelName();
 
   const response = await callGemini(prompt, systemPrompt);

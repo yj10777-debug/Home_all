@@ -1,1 +1,34 @@
 @import "tailwindcss";
+
+/* デザイントークン（20年目視点: 一貫したトーン＆ヒエラルキー） */
+:root {
+  --bg-page: #f8f7f5;
+  --bg-card: #ffffff;
+  --border-card: rgba(0, 0, 0, 0.06);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.05);
+  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --radius-card: 1rem;
+  --radius-button: 0.75rem;
+  --accent: #ea580c;
+  --accent-hover: #c2410c;
+  --accent-muted: #fff7ed;
+  --text-primary: #1c1917;
+  --text-secondary: #57534e;
+  --text-tertiary: #a8a29e;
+}
+
+/* ベース: 読みやすさ・タップ領域 */
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+body {
+  background-color: var(--bg-page);
+  color: var(--text-primary);
+  font-feature-settings: "palt" 1;
+}
+/* フォーカスリング（アクセシビリティ） */
+button:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
