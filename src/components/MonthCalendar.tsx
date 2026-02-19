@@ -115,7 +115,6 @@ export default function MonthCalendar({ days, initialMonth = new Date(), compact
                                 {dayData.hasEvaluation ? (
                                     <>
                                         <span className="text-2xl sm:text-3xl font-bold tracking-tighter leading-none tabular-nums">{dayData.score}</span>
-                                        <span className="text-[10px] opacity-70 font-medium">pt</span>
                                     </>
                                 ) : (
                                     <span className="text-xs text-[var(--text-tertiary)]">-</span>
