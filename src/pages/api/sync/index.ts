@@ -13,7 +13,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    // body から日付範囲を取得（省略時はデフォルト: 直近4日）
+    // body から日付範囲を取得（省略時はデフォルト: 当日1日分）
     const { from, to } = (req.body ?? {}) as { from?: string; to?: string };
 
     const result = await syncData({ from, to });

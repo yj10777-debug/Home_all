@@ -19,6 +19,7 @@ export default async function handler(
     const log = await prisma.syncLog.findUnique({ where: { id: 1 } });
     const schedule = process.env.CRON_SCHEDULE || "0 8,12,19,23 * * *";
 
+    res.setHeader("Cache-Control", "no-store, max-age=0");
     return res.status(200).json({
       lastSync: log
         ? {

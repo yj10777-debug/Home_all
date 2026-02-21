@@ -104,6 +104,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       };
     });
 
+    res.setHeader("Cache-Control", "no-store, max-age=0");
     return res.status(200).json({ dates: days.map(d => d.date), days });
   } catch (err) {
     console.error("GET /api/days error:", err);

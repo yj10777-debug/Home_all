@@ -74,15 +74,18 @@ export default function Home() {
             .finally(() => setPromptLoading(false));
     }, [settingsOpen, mounted]);
 
+    /** キャッシュを使わず常に最新を取得するための fetch オプション */
+    const noCache = { cache: "no-store" as RequestCache };
+
     const fetchData = useCallback(async () => {
         try {
             const todayStr = getEffectiveTodayStr();
 
             const [resDay, resDays, resEval, resSync] = await Promise.all([
-                fetch(`/api/day/${todayStr}`),
-                fetch('/api/days'),
-                fetch('/api/ai/history?limit=1'),
-                fetch('/api/sync/status'),
+                fetch(`/api/day/${todayStr}`, noCache),
+                fetch("/api/days", noCache),
+                fetch("/api/ai/history?limit=1", noCache),
+                fetch("/api/sync/status", noCache),
             ]);
 
             if (resDay.ok) {
@@ -128,6 +131,16 @@ export default function Home() {
     useEffect(() => {
         fetchData();
     }, [fetchData]);
+
+    /** タブに戻ったとき・再表示時に再取得して内容を最新にする */
+    useEffect(() => {
+        if (!mounted) return;
+        const onVisibility = () => {
+            if (document.visibilityState === "visible") fetchData();
+        };
+        document.addEventListener("visibilitychange", onVisibility);
+        return () => document.removeEventListener("visibilitychange", onVisibility);
+    }, [mounted, fetchData]);
 
     const handleAskenSync = async () => {
         setSyncing(true);

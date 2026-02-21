@@ -43,6 +43,7 @@ export default async function handler(
         },
       });
 
+      res.setHeader("Cache-Control", "no-store, max-age=0");
       return res.status(200).json({ evaluations });
     }
 
@@ -62,6 +63,7 @@ export default async function handler(
       },
     });
 
+    res.setHeader("Cache-Control", "no-store, max-age=0");
     return res.status(200).json({ evaluations });
   } catch (e) {
     console.error("AI history error:", e);

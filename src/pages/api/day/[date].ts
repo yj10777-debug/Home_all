@@ -74,6 +74,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (daily.steps != null) data.steps = daily.steps;
     if (daily.exerciseCalories != null) data.exerciseCalories = daily.exerciseCalories;
 
+    res.setHeader("Cache-Control", "no-store, max-age=0");
     return res.status(200).json(data);
   } catch (err) {
     console.error("GET /api/day error:", err);

@@ -53,7 +53,8 @@ export default function DayPage() {
 
   useEffect(() => {
     if (!date || typeof date !== "string") return;
-    fetch(`/api/day/${date}`)
+    const noCache = { cache: "no-store" as RequestCache };
+    fetch(`/api/day/${date}`, noCache)
       .then((r) => {
         if (!r.ok) throw new Error("Not found");
         return r.json();
@@ -62,8 +63,8 @@ export default function DayPage() {
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
 
-    // AI 評価履歴を取得
-    fetch(`/api/ai/history?date=${date}&type=daily`)
+    // AI 評価履歴を取得（常に最新を取得）
+    fetch(`/api/ai/history?date=${date}&type=daily`, noCache)
       .then((r) => r.json())
       .then((d) => {
         if (d.evaluations?.length > 0) setAiEval(d.evaluations[0]);

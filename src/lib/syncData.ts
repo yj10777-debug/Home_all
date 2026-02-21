@@ -25,12 +25,12 @@ type StrongDayData = { workouts: StrongWorkout[]; totals: { workouts: number; se
 
 /**
  * 日付範囲を生成する
- * @param from 開始日 (YYYY-MM-DD)。省略時は today-3
+ * @param from 開始日 (YYYY-MM-DD)。省略時は当日のみ（毎日実行想定）
  * @param to 終了日 (YYYY-MM-DD)。省略時は today
  */
 function getTargetDates(from?: string, to?: string): string[] {
   const endDate = to ? new Date(to + "T00:00:00") : getEffectiveToday();
-  const startDate = from ? new Date(from + "T00:00:00") : subDays(endDate, 3);
+  const startDate = from ? new Date(from + "T00:00:00") : subDays(endDate, 0);
   const dates: string[] = [];
   const current = new Date(startDate);
   while (current <= endDate) {
