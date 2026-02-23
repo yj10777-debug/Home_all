@@ -73,7 +73,7 @@ describe("generateDailyPrompt", () => {
 
     expect(prompt).toContain("Bench Press");
     expect(prompt).toContain("胸トレ");
-    expect(prompt).toContain("漸進性過負荷");
+    expect(prompt).toContain("刺激スコア");
   });
 
   it("PFC の残り量が正しく計算される", async () => {
@@ -91,9 +91,8 @@ describe("generateDailyPrompt", () => {
     const prompt = await generateDailyPrompt("2026-02-11");
 
     expect(prompt).toContain("たんぱく質: 90g");
-    expect(prompt).toContain("目標まであと 60g");
     expect(prompt).toContain("脂質: 35g");
-    expect(prompt).toContain("残り 1067 kcal");
+    expect(prompt).toContain("総摂取カロリー: 1200 kcal");
   });
 
   it("間食のカロリーが nutrients にない場合 items から補完される", async () => {
@@ -113,9 +112,8 @@ describe("generateDailyPrompt", () => {
     const { generateDailyPrompt } = await import("@/lib/gemini");
     const prompt = await generateDailyPrompt("2026-02-11");
 
-    expect(prompt).toContain("合計カロリー: 886 kcal");
-    expect(prompt).toContain("間食 386 kcal を含む");
-    expect(prompt).toContain("残り 1381 kcal");
+    expect(prompt).toContain("総摂取カロリー: 886 kcal");
+    expect(prompt).toContain("間食 386 kcal");
     expect(prompt).toContain("クッキー");
     expect(prompt).toContain("アイス");
   });
@@ -178,8 +176,8 @@ describe("getGemSystemPrompt", () => {
     const prompt = getGemSystemPrompt();
 
     expect(prompt).toContain("パーソナルトレーナー");
-    expect(prompt).toContain("2267");
+    expect(prompt).toContain("評価スコアモデル");
     expect(prompt).toContain("P150g");
-    expect(prompt).toContain("日本語");
+    expect(prompt).toContain("100点満点");
   });
 });

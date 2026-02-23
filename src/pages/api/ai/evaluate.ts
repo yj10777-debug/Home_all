@@ -6,8 +6,12 @@ import { isGeminiConfigured } from "../../../lib/geminiClient";
 /**
  * POST /api/ai/evaluate
  * AI評価を実行してDBに保存する
- * body: { date?: string, type?: "daily" | "weekly", trigger?: "manual" | "cron" }
+ * body: { date?: string, type?: "daily" | "weekly", trigger?: "manual" | "cron", systemPrompt?: string }
  */
+export const config = {
+  api: { bodyParser: { sizeLimit: "2mb" } },
+};
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse

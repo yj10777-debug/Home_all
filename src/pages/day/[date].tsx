@@ -2,6 +2,7 @@ import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import Head from "next/head";
+import { getStoredSystemPrompt } from "../../lib/aiPromptStorage";
 
 type StrongExercise = { name: string; sets: number; volumeKg?: number; reps?: number };
 type StrongWorkout = {
@@ -78,10 +79,13 @@ export default function DayPage() {
     setEvaluating(true);
     setEvalError(null);
     try {
+      const systemPrompt = getStoredSystemPrompt();
+      const body: { date: string; type: "daily"; trigger: "manual"; systemPrompt?: string } = { date, type: "daily", trigger: "manual" };
+      if (systemPrompt) body.systemPrompt = systemPrompt;
       const res = await fetch("/api/ai/evaluate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date, type: "daily", trigger: "manual" }),
+        body: JSON.stringify(body),
       });
       const d = await res.json();
       if (res.ok && d.success) {

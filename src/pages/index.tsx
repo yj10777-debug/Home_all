@@ -25,7 +25,7 @@ const PFC_TARGETS: PfcTarget[] = [
 ];
 
 /** localStorage に保存する AI システムプロンプトのキー */
-const AI_PROMPT_STORAGE_KEY = "nutrition-ai-system-prompt";
+import { AI_PROMPT_STORAGE_KEY, getStoredSystemPrompt } from "../lib/aiPromptStorage";
 
 export default function Home() {
     const [todayCalories, setTodayCalories] = useState(0);
@@ -50,6 +50,7 @@ export default function Home() {
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [promptDraft, setPromptDraft] = useState("");
     const [promptLoading, setPromptLoading] = useState(false);
+    const [promptSavedMessage, setPromptSavedMessage] = useState<string | null>(null);
 
     useEffect(() => {
         setMounted(true);
@@ -168,9 +169,9 @@ export default function Home() {
         setEvaluating(true);
         setEvalError(null);
         try {
-            const systemPrompt = typeof window !== "undefined" ? window.localStorage.getItem(AI_PROMPT_STORAGE_KEY) : null;
+            const systemPrompt = getStoredSystemPrompt();
             const body: { type: "daily"; trigger: "manual"; systemPrompt?: string } = { type: "daily", trigger: "manual" };
-            if (systemPrompt != null && systemPrompt.trim() !== "") body.systemPrompt = systemPrompt;
+            if (systemPrompt) body.systemPrompt = systemPrompt;
             const res = await fetch("/api/ai/evaluate", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -425,6 +426,9 @@ export default function Home() {
                                         {evaluating ? "評価中..." : "今日を評価"}
                                     </button>
                                 </div>
+                                {promptSavedMessage && (
+                                    <p className="mt-2 text-sm text-emerald-600" role="status">{promptSavedMessage}</p>
+                                )}
                                 {evalError && (
                                     <div className="mt-3 rounded-lg p-2.5 text-sm text-red-600 border border-red-200 bg-red-50/50" role="alert">{evalError}</div>
                                 )}
@@ -510,9 +514,16 @@ export default function Home() {
                                     type="button"
                                     onClick={() => {
                                         const v = promptDraft.trim();
-                                        if (v !== "") window.localStorage.setItem(AI_PROMPT_STORAGE_KEY, v);
-                                        else window.localStorage.removeItem(AI_PROMPT_STORAGE_KEY);
+                                        if (typeof window !== "undefined") {
+                                            if (v !== "") {
+                                                window.localStorage.setItem(AI_PROMPT_STORAGE_KEY, v);
+                                            } else {
+                                                window.localStorage.removeItem(AI_PROMPT_STORAGE_KEY);
+                                            }
+                                        }
                                         setSettingsOpen(false);
+                                        setPromptSavedMessage("プロンプトを保存しました。次回の「今日を評価」から反映されます。");
+                                        setTimeout(() => setPromptSavedMessage(null), 4000);
                                     }}
                                     className="min-h-[44px] px-4 py-2 text-white text-sm font-semibold rounded-[var(--radius-button)] hover:opacity-90"
                                     style={{ backgroundColor: "var(--accent)" }}
