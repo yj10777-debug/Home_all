@@ -260,12 +260,14 @@ export default function AnalyticsPage() {
                         />
                         <Tooltip
                           content={({ active, payload, label }) => {
-                            if (!active || !payload?.length || !label) return null;
+                            if (!active || !payload?.length || label == null) return null;
+                            const labelStr = String(label);
                             const d = payload[0]?.payload;
+                            const parsed = parseISO(labelStr);
                             return (
                               <div className="bg-[#0e1c0e] border border-[#244724] rounded-lg px-3 py-2 shadow-xl text-xs">
                                 <p className="text-slate-400 mb-1">
-                                  {isValid(parseISO(label)) ? format(parseISO(label), "yyyy/M/d (EEE)", { locale: ja }) : label}
+                                  {isValid(parsed) ? format(parsed, "yyyy/M/d (EEE)", { locale: ja }) : labelStr}
                                 </p>
                                 <p className="text-white font-bold">{d?.calories ?? 0} kcal</p>
                                 {d?.score != null && (
@@ -394,12 +396,14 @@ export default function AnalyticsPage() {
                         />
                         <Tooltip
                           content={({ active, payload, label }) => {
-                            if (!active || !payload?.length || !label) return null;
+                            if (!active || !payload?.length || label == null) return null;
+                            const labelStr = String(label);
                             const d = payload[0]?.payload;
+                            const parsed = parseISO(labelStr);
                             return (
                               <div className="bg-[#0e1c0e] border border-[#244724] rounded-lg px-3 py-2 shadow-xl text-xs">
                                 <p className="text-slate-400 mb-1">
-                                  {isValid(parseISO(label)) ? format(parseISO(label), "M/d (EEE)", { locale: ja }) : label}
+                                  {isValid(parsed) ? format(parsed, "M/d (EEE)", { locale: ja }) : labelStr}
                                 </p>
                                 <p className="text-white font-bold">{d?.calories ?? 0} kcal</p>
                                 {d?.score != null && <p className={scoreColor(d.score)}>スコア {d.score}</p>}
