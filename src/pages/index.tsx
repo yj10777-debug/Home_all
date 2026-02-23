@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import Head from "next/head";
-import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
 import { ja } from "date-fns/locale";
 import { getEffectiveTodayStr } from "../lib/dateUtils";
@@ -178,30 +177,15 @@ export default function Home() {
                 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
             </Head>
 
+            {/* 左タブは AppLayout で表示。ここでは日付のみ */}
             <header className="bg-[#112211] border-b border-[#244724] sticky top-0 z-10 safe-area-top">
-                <div className="max-w-7xl mx-auto px-4 min-h-[4rem] py-3 flex items-center justify-between">
-                    <div>
-                        <h1 className="font-display text-xl font-bold tracking-tight text-white">
-                            Nutrition
-                        </h1>
-                        <p className="text-xs text-slate-400 mt-0.5">{getEffectiveTodayStr()}</p>
-                    </div>
-                    <nav className="flex items-center gap-2">
-                        <Link
-                            href="/settings"
-                            className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center rounded-lg border border-[#244724] text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
-                            aria-label="AIプロンプト設定"
-                        >
-                            <span className="material-symbols-outlined text-[22px]">settings</span>
-                        </Link>
-                        <Link href="/days" className="text-sm font-medium text-slate-400 hover:text-white transition-colors py-2.5 px-4 rounded-lg min-h-[44px] inline-flex items-center border border-[#244724] hover:bg-white/5">
-                            履歴
-                        </Link>
-                    </nav>
+                <div className="px-4 md:px-6 lg:px-8 min-h-[3.5rem] py-3 flex items-center">
+                    <h1 className="font-display text-lg font-bold text-white">今日のサマリー</h1>
+                    <span className="ml-3 text-slate-400 text-sm">{getEffectiveTodayStr()}</span>
                 </div>
             </header>
 
-            <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+            <main className="w-full px-4 md:px-6 lg:px-8 py-6 space-y-6">
                 {/* 今日のサマリー：横並び4カード */}
                 <section aria-label="今日のサマリー">
                     <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 px-1">今日のサマリー</h2>
@@ -327,7 +311,7 @@ export default function Home() {
                                     <span>{latestEval.model}</span>
                                 </div>
                                 <pre
-                                    className="p-5 md:p-6 text-xs md:text-sm text-white leading-relaxed whitespace-pre-wrap font-sans overflow-x-auto select-all cursor-text min-h-[240px] max-h-[420px] overflow-y-auto"
+                                    className="p-5 md:p-8 text-xs md:text-sm text-white leading-relaxed whitespace-pre-wrap font-sans overflow-x-auto select-all cursor-text min-h-[280px] max-h-[70vh] overflow-y-auto"
                                     role="textbox"
                                     tabIndex={0}
                                     aria-label="AI評価本文（一括選択してコピーできます）"

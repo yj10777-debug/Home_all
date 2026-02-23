@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isSameMonth, isToday, addMonths, subMonths, parseISO, isValid } from 'date-fns';
+import { useState, useEffect } from 'react';
+import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, isToday, addMonths, subMonths } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import Link from 'next/link';
 
@@ -12,15 +12,37 @@ type CalendarDay = {
     calories: number;
 };
 
+const GOAL_CALORIES = 2267;
+
 type Props = {
     days: CalendarDay[];
     initialMonth?: Date;
     /** true のときセル高さを小さく表示 */
     compact?: boolean;
+    /** 選択中の日付（右パネル連動用） */
+    selectedDate?: string | null;
+    /** 日付クリック時のコールバック（指定時は選択のみ） */
+    onSelectDate?: (date: string | null) => void;
+    /** セルにカロリー表示・凡例表示（参考デザイン風） */
+    showCaloriesInCell?: boolean;
+    /** 月変更時に親へ通知（サマリーカード用） */
+    onMonthChange?: (month: Date) => void;
 };
 
-export default function MonthCalendar({ days, initialMonth = new Date(), compact = false }: Props) {
+export default function MonthCalendar({
+    days,
+    initialMonth = new Date(),
+    compact = false,
+    selectedDate = null,
+    onSelectDate,
+    showCaloriesInCell = false,
+    onMonthChange,
+}: Props) {
     const [currentMonth, setCurrentMonth] = useState(initialMonth);
+
+    useEffect(() => {
+        onMonthChange?.(currentMonth);
+    }, [currentMonth, onMonthChange]);
 
     if (!days) {
         return <div className="h-full flex items-center justify-center text-gray-400 text-sm">データ読み込み中...</div>;
@@ -33,7 +55,6 @@ export default function MonthCalendar({ days, initialMonth = new Date(), compact
     // カレンダーグリッド生成
     const monthStart = startOfMonth(currentMonth);
     const monthEnd = endOfMonth(currentMonth);
-    const startDate = monthStart;
     const startDayOfWeek = getDay(monthStart); // 0(Sun) - 6(Sat)
 
     const allDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
@@ -44,6 +65,11 @@ export default function MonthCalendar({ days, initialMonth = new Date(), compact
         if (score >= 60) return 'text-amber-400';
         return 'text-red-400';
     };
+
+    /** 目標達成：スコア80以上 または カロリーが目標±10%以内 */
+    const isGoalMet = (d: CalendarDay) =>
+        (d.hasEvaluation && d.score >= 80) ||
+        (d.calories > 0 && Math.abs(d.calories - GOAL_CALORIES) / GOAL_CALORIES <= 0.1);
 
     const prevMonth = () => setCurrentMonth(subMonths(currentMonth, 1));
     const nextMonth = () => setCurrentMonth(addMonths(currentMonth, 1));
@@ -100,37 +126,83 @@ export default function MonthCalendar({ days, initialMonth = new Date(), compact
                     }
 
                     const scoreColor = dayData.hasEvaluation ? getScoreColor(dayData.score) : 'text-white';
+                    const selected = selectedDate === dateStr;
+                    const goalMet = isGoalMet(dayData);
 
-                    return (
-                        <Link
-                            href={`/day/${dateStr}`}
-                            key={dateStr}
-                            className={`relative p-2 rounded-lg flex flex-col justify-between transition-all hover:bg-[#214021] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#19e619] focus-visible:ring-offset-2 focus-visible:ring-offset-[#112211] group ${isTodayDate ? 'bg-[#244724] ring-1 ring-[#19e619] ring-inset' : 'bg-[#1a331a] border border-transparent'}`}
-                        >
+                    const cellClass = `relative p-2 rounded-lg flex flex-col justify-between transition-all hover:bg-[#214021] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#19e619] focus-visible:ring-offset-2 focus-visible:ring-offset-[#112211] group ${isTodayDate ? 'bg-[#244724] ring-1 ring-[#19e619] ring-inset' : 'bg-[#1a331a] border border-transparent'} ${selected ? 'ring-2 ring-[#19e619] bg-[#244724]' : ''}`;
+
+                    const content = (
+                        <>
                             <div className="flex justify-between items-start w-full flex-shrink-0">
                                 <span className={`text-sm tabular-nums ${isTodayDate ? 'font-bold text-[#19e619]' : 'text-slate-400 group-hover:text-white'}`}>
                                     {format(dateObj, 'd')}
                                 </span>
-                                {dayData.hasStrong && <span className="text-xs opacity-80" title="筋トレ実施">💪</span>}
+                                {!showCaloriesInCell && dayData.hasStrong && <span className="text-xs opacity-80" title="筋トレ実施">💪</span>}
                             </div>
-                            <div className="flex flex-col items-center justify-center flex-1 min-h-0 py-0.5">
-                                {dayData.hasEvaluation ? (
-                                    <span className={`text-lg font-black tabular-nums leading-none ${scoreColor}`}>{dayData.score}</span>
-                                ) : (
-                                    <span className="text-sm text-slate-600">-</span>
-                                )}
-                            </div>
-                            <div className="w-full text-right flex-shrink-0">
-                                {dayData.steps != null && dayData.steps > 0 && (
-                                    <span className="text-[10px] font-medium text-slate-500">
-                                        {dayData.steps.toLocaleString()}歩
-                                    </span>
-                                )}
-                            </div>
+                            {showCaloriesInCell ? (
+                                <>
+                                    <div className="flex flex-col items-center justify-center flex-1 min-h-0 py-0.5">
+                                        <span className="text-[10px] sm:text-xs font-medium text-slate-400 tabular-nums">
+                                            {dayData.calories > 0 ? `${dayData.calories.toLocaleString()} kcal` : '—'}
+                                        </span>
+                                        {dayData.hasEvaluation && (
+                                            <span className={`text-sm font-bold tabular-nums ${scoreColor}`}>{dayData.score}</span>
+                                        )}
+                                    </div>
+                                    <div className="flex justify-center gap-0.5 flex-shrink-0">
+                                        {dayData.hasStrong && <span className="w-1.5 h-1.5 rounded-full bg-blue-400" title="筋トレ" />}
+                                        {goalMet && <span className="w-1.5 h-1.5 rounded-full bg-[#19e619]" title="目標達成" />}
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="flex flex-col items-center justify-center flex-1 min-h-0 py-0.5">
+                                        {dayData.hasEvaluation ? (
+                                            <span className={`text-lg font-black tabular-nums leading-none ${scoreColor}`}>{dayData.score}</span>
+                                        ) : (
+                                            <span className="text-sm text-slate-600">-</span>
+                                        )}
+                                    </div>
+                                    <div className="w-full text-right flex-shrink-0">
+                                        {dayData.steps != null && dayData.steps > 0 && (
+                                            <span className="text-[10px] font-medium text-slate-500">
+                                                {dayData.steps.toLocaleString()}歩
+                                            </span>
+                                        )}
+                                    </div>
+                                </>
+                            )}
+                        </>
+                    );
+
+                    if (onSelectDate) {
+                        return (
+                            <button
+                                type="button"
+                                key={dateStr}
+                                onClick={() => onSelectDate(dateStr)}
+                                className={cellClass}
+                            >
+                                {content}
+                            </button>
+                        );
+                    }
+
+                    return (
+                        <Link href={`/day/${dateStr}`} key={dateStr} className={cellClass}>
+                            {content}
                         </Link>
                     );
                 })}
             </div>
+
+            {/* 凡例（参考デザイン：青=ワークアウト、緑=目標達成） */}
+            {showCaloriesInCell && (
+                <div className="flex flex-wrap items-center gap-4 mt-4 pt-3 border-t border-[#244724] text-[10px] text-slate-500">
+                    <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-blue-400" /> 筋トレ</span>
+                    <span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-[#19e619]" /> 目標達成</span>
+                </div>
+            )}
         </div>
     );
 }

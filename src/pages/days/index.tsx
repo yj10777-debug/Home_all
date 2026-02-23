@@ -62,23 +62,13 @@ export default function DaysIndex() {
       </Head>
 
       <header className="bg-[#112211] border-b border-[#244724] sticky top-0 z-20">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
-          <div className="flex items-center gap-4">
-            <Link href="/" className="min-w-[44px] min-h-[44px] inline-flex items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-colors">
-              <span className="material-symbols-outlined text-xl">arrow_back</span>
-            </Link>
-            <div>
-              <h1 className="text-xl font-bold text-white">履歴</h1>
-              <p className="text-sm text-slate-400">日付別データ一覧</p>
-            </div>
-          </div>
-          <Link href="/" className="text-sm font-medium text-slate-400 hover:text-white transition-colors py-2 px-3 rounded-xl min-h-[44px] inline-flex items-center hover:bg-white/5">
-            ダッシュボード
-          </Link>
+        <div className="px-4 md:px-6 lg:px-8 py-4">
+          <h1 className="text-xl font-bold text-white">履歴</h1>
+          <p className="text-sm text-slate-400 mt-0.5">日付別データ一覧</p>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      <main className="w-full px-4 md:px-6 lg:px-8 py-8">
         <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 px-1">
           履歴一覧
         </h2>
