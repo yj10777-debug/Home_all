@@ -17,7 +17,7 @@ type AskenItem = { mealType: string; name: string; amount: string; calories: num
 type AskenExercise = { steps: number; calories: number };
 type AskenDayResult = { date: string; items: AskenItem[]; nutrients: Partial<Record<string, Record<string, string>>>; exercise?: AskenExercise };
 
-type StrongExercise = { name: string; sets: number; volumeKg: number };
+type StrongExercise = { name: string; sets: number; volumeKg: number; reps?: number };
 type StrongWorkout = { title: string; totals: { sets: number; reps: number; volumeKg: number }; exercises: StrongExercise[] };
 type StrongDayData = { workouts: StrongWorkout[]; totals: { workouts: number; sets: number; volumeKg: number } };
 
@@ -25,12 +25,12 @@ type StrongDayData = { workouts: StrongWorkout[]; totals: { workouts: number; se
 
 /**
  * 日付範囲を生成する
- * @param from 開始日 (YYYY-MM-DD)。省略時は当日のみ（毎日実行想定）
+ * @param from 開始日 (YYYY-MM-DD)。省略時は前日〜当日の2日分（入力忘れ反映用）
  * @param to 終了日 (YYYY-MM-DD)。省略時は today
  */
 function getTargetDates(from?: string, to?: string): string[] {
   const endDate = to ? new Date(to + "T00:00:00") : getEffectiveToday();
-  const startDate = from ? new Date(from + "T00:00:00") : subDays(endDate, 0);
+  const startDate = from ? new Date(from + "T00:00:00") : subDays(endDate, 1);
   const dates: string[] = [];
   const current = new Date(startDate);
   while (current <= endDate) {
@@ -102,6 +102,8 @@ function parseSetLine(line: string): { weight: number; reps: number } | null {
   if (kgMatch) return { weight: parseFloat(kgMatch[1]), reps: parseInt(kgMatch[2], 10) };
   const repsMatch = line.match(new RegExp(`セット\\s*\\d+${sep}\\s*(\\d+)\\s*レップス`));
   if (repsMatch) return { weight: 0, reps: parseInt(repsMatch[1], 10) };
+  const timeMatch = line.match(new RegExp(`セット\\s*\\d+${sep}\\s*(\\d+):(\\d+)`));
+  if (timeMatch) return { weight: 0, reps: Math.round(parseInt(timeMatch[1], 10) + parseInt(timeMatch[2], 10) / 60) }; // 分に変換
   const climbingMatch = line.match(new RegExp(`セット\\s*\\d+${sep}\\s*(\\d+)\\s+(\\d+)`));
   if (climbingMatch) return { weight: 0, reps: parseInt(climbingMatch[1], 10) || parseInt(climbingMatch[2], 10) };
   return null;
@@ -159,17 +161,19 @@ export function buildStrongData(
   for (const [dateStr, workoutList] of byDate) {
     const workouts: StrongWorkout[] = [];
     for (const w of workoutList) {
-      const byExercise = new Map<string, { sets: number; volumeKg: number }>();
+      const byExercise = new Map<string, { sets: number; volumeKg: number; reps: number }>();
       for (const e of w.exercises) {
-        const cur = byExercise.get(e.name) || { sets: 0, volumeKg: 0 };
+        const cur = byExercise.get(e.name) || { sets: 0, volumeKg: 0, reps: 0 };
         cur.sets += 1;
         cur.volumeKg += e.weight * e.reps;
+        cur.reps += e.reps;
         byExercise.set(e.name, cur);
       }
       const exercises = Array.from(byExercise.entries()).map(([name, t]) => ({
         name,
         sets: t.sets,
         volumeKg: Math.round(t.volumeKg * 10) / 10,
+        ...(t.volumeKg === 0 && t.reps > 0 ? { reps: t.reps } : {}),
       }));
       const volumeKg = w.exercises.reduce((s, e) => s + e.weight * e.reps, 0);
       workouts.push({

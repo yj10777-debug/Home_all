@@ -34,7 +34,10 @@ async function getAccessToken(config: NonNullable<ReturnType<typeof getConfig>>)
 
   if (!res.ok) {
     const err = await res.text();
-    throw new Error(`アクセストークン取得失敗: ${res.status} ${err}`);
+    const hint = err.includes("invalid_grant") || err.includes("Token has been expired or revoked")
+      ? " → リフレッシュトークンが期限切れまたは無効です。プロジェクトで `npx tsx scripts/google-auth.ts` を実行して再認証し、表示された GOOGLE_REFRESH_TOKEN を .env に設定してください。"
+      : "";
+    throw new Error(`アクセストークン取得失敗: ${res.status} ${err}${hint}`);
   }
 
   const data = (await res.json()) as { access_token: string };

@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import Head from "next/head";
 
-type StrongExercise = { name: string; sets: number; volumeKg?: number };
+type StrongExercise = { name: string; sets: number; volumeKg?: number; reps?: number };
 type StrongWorkout = {
   title?: string;
   totals?: { sets: number; reps?: number; volumeKg?: number };
@@ -283,9 +283,11 @@ export default function DayPage() {
                                   <span className="text-gray-600">{e.name}</span>
                                   <div className="flex items-center gap-3 text-gray-500 text-xs">
                                     <span>{e.sets} sets</span>
-                                    {e.volumeKg != null && (
+                                    {e.reps != null && e.volumeKg === 0 ? (
+                                      <span className="font-medium text-gray-700">{e.reps} 分</span>
+                                    ) : e.volumeKg != null && e.volumeKg > 0 ? (
                                       <span className="font-medium text-gray-700">{e.volumeKg.toLocaleString()} kg</span>
-                                    )}
+                                    ) : null}
                                   </div>
                                 </div>
                               ))}

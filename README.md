@@ -110,3 +110,28 @@ node scripts/asken/dist/run.js
 ```
 The script will log the target URL and the result items (or errors) to the console.
 Failed runs will save `secrets/asken-error.png` and `secrets/asken-error.html` for debugging.
+
+## Google Drive（Strong 同期）
+
+Strong の筋トレデータを Google Drive のフォルダから取得するために OAuth 2.0 を使用しています。
+
+### 環境変数
+
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — [Google Cloud Console](https://console.cloud.google.com/) で OAuth 2.0 クライアント ID を作成し、クライアント ID とシークレットを取得して設定
+- `GOOGLE_REFRESH_TOKEN` — 下記「再認証」で取得するリフレッシュトークン
+- `GOOGLE_DRIVE_STRONG_FOLDER_ID` — Strong の .txt を置いている Drive フォルダの ID
+
+### トークン期限切れ（invalid_grant）になったとき
+
+`Token has been expired or revoked` や `invalid_grant` が出たら、リフレッシュトークンを再発行する必要があります。
+
+**注意:** 再認証スクリプトを実行するたびに**新しいリフレッシュトークン**が発行され、**古いトークンは無効になる**ことがあります。取得した新しいトークンは**必ずすべての環境**（`.env.local` と本番の Variables）に同じ値で反映してください。片方だけ更新すると、もう片方が古いトークンを使い続けてすぐに invalid_grant になります。
+
+1. `.env.local` に `GOOGLE_CLIENT_ID` と `GOOGLE_CLIENT_SECRET` を設定する（既に設定済みならそのまま）
+2. プロジェクト直下で実行:
+   ```bash
+   npx tsx scripts/google-auth.ts
+   ```
+3. 表示された URL をブラウザで開き、Google アカウントで認証する
+4. ターミナルに表示された **`GOOGLE_REFRESH_TOKEN=...`** をコピーし、**.env.local と本番（Railway 等）の両方**に設定・更新する
+5. 同期（「今すぐ取得」または cron）を再度実行する
