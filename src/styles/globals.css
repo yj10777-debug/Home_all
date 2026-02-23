@@ -1,34 +1,60 @@
 @import "tailwindcss";
 
-/* デザイントークン（20年目視点: 一貫したトーン＆ヒエラルキー） */
+/* Iron Log 風ダークテーマ（貼り付けたデザイン準拠） */
 :root {
-  --bg-page: #f8f7f5;
-  --bg-card: #ffffff;
-  --border-card: rgba(0, 0, 0, 0.06);
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.05);
-  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.06);
-  --radius-card: 1rem;
-  --radius-button: 0.75rem;
-  --accent: #ea580c;
-  --accent-hover: #c2410c;
-  --accent-muted: #fff7ed;
-  --text-primary: #1c1917;
-  --text-secondary: #57534e;
-  --text-tertiary: #a8a29e;
+  --primary: #19e619;
+  --primary-hover: #15c515;
+  --bg-page: #112211;
+  --bg-card: #1a331a;
+  --bg-card-hover: #214021;
+  --border-card: #244724;
+  --surface-dark: #152915;
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-tertiary: #94a3b8;
+  --radius-card: 0.75rem;
+  --radius-button: 0.5rem;
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.25);
+  /* 既存変数名互換 */
+  --accent: #19e619;
+  --accent-hover: #15c515;
+  --accent-muted: rgba(25, 230, 25, 0.1);
 }
 
-/* ベース: 読みやすさ・タップ領域 */
 html {
   -webkit-tap-highlight-color: transparent;
 }
+
 body {
   background-color: var(--bg-page);
   color: var(--text-primary);
   font-feature-settings: "palt" 1;
 }
-/* フォーカスリング（アクセシビリティ） */
+
+/* ダークテーマ用スクロールバー */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--bg-page);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-card);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
 button:focus-visible,
 a:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--primary);
   outline-offset: 2px;
+}
+
+/* 見出しは Manrope 風（フォントは _document で読み込み） */
+h1, h2, h3, .font-display {
+  font-family: 'Manrope', 'Noto Sans JP', sans-serif;
 }
