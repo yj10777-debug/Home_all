@@ -125,16 +125,14 @@ export default function PersonalPage() {
   useEffect(() => {
     let cancelled = false;
     fetch("/api/config", { cache: "no-store" })
-      .then((r) => {
-        if (!r.ok) return r.json().then((data) => ({ ok: false, data }));
-        return r.json().then((data) => ({ ok: true, data }));
-      })
+      .then((r) => r.json().then((data) => ({ ok: r.ok, data }) as { ok: boolean; data: unknown }))
       .then(({ ok, data }) => {
         if (cancelled) return;
         setConfigLoaded(true);
-        if (!ok || data?.error) return;
-        const personalData = normalizePersonal(data?.personal);
-        const goalsData = data?.goals ?? DEFAULT_GOALS;
+        const body = data as { error?: string; personal?: unknown; goals?: Goals } | undefined;
+        if (!ok || body?.error) return;
+        const personalData = normalizePersonal(body?.personal);
+        const goalsData = body?.goals ?? DEFAULT_GOALS;
         setPersonal(personalData);
         const computed = computeGoalsFromPersonal(personalData);
         const isDefaultGoals =
