@@ -1,14 +1,18 @@
 @import "tailwindcss";
 
-/* Iron Log 風ダークテーマ（貼り付けたデザイン準拠） */
-:root {
+/* デフォルト（緑）テーマ */
+:root,
+[data-theme="default"] {
   --primary: #19e619;
   --primary-hover: #15c515;
   --bg-page: #112211;
+  --bg-sidebar: #0e1c0e;
   --bg-card: #1a331a;
   --bg-card-hover: #214021;
+  --bg-input: #112211;
   --border-card: #244724;
   --surface-dark: #152915;
+  --surface-darker: #0e1c0e;
   --text-primary: #f8fafc;
   --text-secondary: #cbd5e1;
   --text-tertiary: #94a3b8;
@@ -16,10 +20,112 @@
   --radius-button: 0.5rem;
   --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.2);
   --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.25);
-  /* 既存変数名互換 */
   --accent: #19e619;
   --accent-hover: #15c515;
   --accent-muted: rgba(25, 230, 25, 0.1);
+  --nav-active-bg: rgba(25, 230, 25, 0.1);
+  --nav-active-border: rgba(25, 230, 25, 0.2);
+  --btn-primary-text: #0a0a0a;
+}
+
+/* 白（ライト）テーマ - やや落ち着いた明るさ */
+[data-theme="light"] {
+  --primary: #16a34a;
+  --primary-hover: #15803d;
+  --bg-page: #e2e8f0;
+  --bg-sidebar: #cbd5e1;
+  --bg-card: #f1f5f9;
+  --bg-card-hover: #e2e8f0;
+  --bg-input: #f8fafc;
+  --border-card: #cbd5e1;
+  --surface-dark: #e2e8f0;
+  --surface-darker: #cbd5e1;
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-tertiary: #475569;
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.12);
+  --accent: #16a34a;
+  --accent-hover: #15803d;
+  --accent-muted: rgba(22, 163, 74, 0.1);
+  --nav-active-bg: rgba(22, 163, 74, 0.12);
+  --nav-active-border: rgba(22, 163, 74, 0.25);
+  --btn-primary-text: #ffffff;
+}
+
+/* 黒（ダーク）テーマ */
+[data-theme="dark"] {
+  --primary: #22c55e;
+  --primary-hover: #16a34a;
+  --bg-page: #0a0a0a;
+  --bg-sidebar: #050505;
+  --bg-card: #141414;
+  --bg-card-hover: #1a1a1a;
+  --bg-input: #0a0a0a;
+  --border-card: #262626;
+  --surface-dark: #0f0f0f;
+  --surface-darker: #050505;
+  --text-primary: #fafafa;
+  --text-secondary: #a3a3a3;
+  --text-tertiary: #737373;
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --accent: #22c55e;
+  --accent-hover: #16a34a;
+  --accent-muted: rgba(34, 197, 94, 0.12);
+  --nav-active-bg: rgba(34, 197, 94, 0.12);
+  --nav-active-border: rgba(34, 197, 94, 0.25);
+  --btn-primary-text: #0a0a0a;
+}
+
+/* ピンクテーマ（女性に使いやすいローズ系・やや落ち着いた明るさ） */
+[data-theme="pink"] {
+  --primary: #db2777;
+  --primary-hover: #be185d;
+  --bg-page: #fce7f3;
+  --bg-sidebar: #fbcfe8;
+  --bg-card: #fdf2f8;
+  --bg-card-hover: #fce7f3;
+  --bg-input: #fdf2f8;
+  --border-card: #f9a8d4;
+  --surface-dark: #fce7f3;
+  --surface-darker: #fbcfe8;
+  --text-primary: #701a3a;
+  --text-secondary: #831843;
+  --text-tertiary: #9d174d;
+  --shadow-card: 0 1px 3px rgba(219, 39, 119, 0.1);
+  --shadow-card-hover: 0 4px 12px rgba(219, 39, 119, 0.14);
+  --accent: #db2777;
+  --accent-hover: #be185d;
+  --accent-muted: rgba(219, 39, 119, 0.1);
+  --nav-active-bg: rgba(219, 39, 119, 0.12);
+  --nav-active-border: rgba(219, 39, 119, 0.25);
+  --btn-primary-text: #ffffff;
+}
+
+/* オーシャンブルー（人気の落ち着いた青系・やや落ち着いた明るさ） */
+[data-theme="ocean"] {
+  --primary: #0891b2;
+  --primary-hover: #0e7490;
+  --bg-page: #e0f2fe;
+  --bg-sidebar: #bae6fd;
+  --bg-card: #f0f9ff;
+  --bg-card-hover: #e0f2fe;
+  --bg-input: #f0f9ff;
+  --border-card: #7dd3fc;
+  --surface-dark: #e0f2fe;
+  --surface-darker: #bae6fd;
+  --text-primary: #0c4a6e;
+  --text-secondary: #075985;
+  --text-tertiary: #0369a1;
+  --shadow-card: 0 1px 3px rgba(8, 145, 178, 0.1);
+  --shadow-card-hover: 0 4px 12px rgba(8, 145, 178, 0.14);
+  --accent: #0891b2;
+  --accent-hover: #0e7490;
+  --accent-muted: rgba(8, 145, 178, 0.1);
+  --nav-active-bg: rgba(8, 145, 178, 0.12);
+  --nav-active-border: rgba(8, 145, 178, 0.25);
+  --btn-primary-text: #ffffff;
 }
 
 html {

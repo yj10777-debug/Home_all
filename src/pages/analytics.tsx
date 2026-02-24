@@ -119,15 +119,15 @@ export default function AnalyticsPage() {
   );
 
   const scoreColor = (score: number) => {
-    if (score >= 80) return "text-[#19e619]";
+    if (score >= 80) return "text-[var(--primary)]";
     if (score >= 60) return "text-amber-400";
     return "text-red-400";
   };
 
   const calorieColor = (cal: number) => {
-    if (cal === 0) return "text-slate-500";
+    if (cal === 0) return "text-[var(--text-tertiary)]";
     const diff = Math.abs(cal - GOAL_CALORIES) / GOAL_CALORIES;
-    if (diff <= 0.1) return "text-[#19e619]";
+    if (diff <= 0.1) return "text-[var(--primary)]";
     if (diff <= 0.2) return "text-amber-400";
     return "text-red-400";
   };
@@ -141,25 +141,25 @@ export default function AnalyticsPage() {
   return (
     <>
       <Head>
-        <title>進捗とアナリティクス — Nutrition</title>
+        <title>進捗とアナリティクス — からだノート</title>
       </Head>
       <main className="p-4 sm:p-6 min-h-full">
         <div className="max-w-5xl mx-auto">
-          <h1 className="text-2xl font-bold text-white mb-1 flex items-center gap-2">
-            <span className="material-symbols-outlined text-[#19e619]">analytics</span>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)] mb-1 flex items-center gap-2">
+            <span className="material-symbols-outlined text-[var(--primary)]">analytics</span>
             進捗とアナリティクス
           </h1>
-          <p className="text-slate-400 text-sm mb-6">脂肪減少から筋肉増強までの推移を可視化</p>
+          <p className="text-[var(--text-tertiary)] text-sm mb-6">脂肪減少から筋肉増強までの推移を可視化</p>
 
           {loading ? (
-            <div className="flex items-center justify-center py-16 text-slate-400 text-sm">
+            <div className="flex items-center justify-center py-16 text-[var(--text-tertiary)] text-sm">
               読み込み中...
             </div>
           ) : (
             <div className="space-y-6">
               {/* 期間フィルター + Export（参考デザイン） */}
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex gap-1 p-1 bg-[#1a331a] rounded-lg border border-[#244724]">
+                <div className="flex gap-1 p-1 bg-[var(--bg-card)] rounded-lg border border-[var(--border-card)]">
                   {(["1M", "3M", "6M", "All"] as const).map((p) => (
                     <button
                       key={p}
@@ -167,8 +167,8 @@ export default function AnalyticsPage() {
                       onClick={() => setPeriod(p)}
                       className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
                         period === p
-                          ? "bg-[#19e619] text-[#112211]"
-                          : "text-slate-400 hover:text-white hover:bg-white/5"
+                          ? "bg-[var(--primary)] text-[var(--btn-primary-text)]"
+                          : "text-[var(--text-tertiary)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-card-hover)]"
                       }`}
                     >
                       {periodLabels[p]}
@@ -179,57 +179,57 @@ export default function AnalyticsPage() {
 
               {/* メトリクスカード 4枚（前期間比） */}
               <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                <div className="bg-[#1a331a] border border-[#244724] rounded-xl p-4">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">平均カロリー</p>
+                <div className="bg-[var(--bg-card)] border border-[var(--border-card)] rounded-xl p-4">
+                  <p className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-1">平均カロリー</p>
                   <p className={`text-xl font-black tabular-nums ${calorieColor(avgCalories)}`}>
                     {avgCalories > 0 ? `${avgCalories.toLocaleString()}` : "—"}
                   </p>
-                  <p className="text-[10px] text-slate-500">
+                  <p className="text-[10px] text-[var(--text-tertiary)]">
                     {prevAvgCalories > 0 && (
-                      <span className={calorieDiff >= 0 ? "text-amber-400" : "text-[#19e619]"}>
+                      <span className={calorieDiff >= 0 ? "text-amber-400" : "text-[var(--primary)]"}>
                         {calorieDiff >= 0 ? "↑" : "↓"} {Math.abs(calorieDiff).toFixed(1)}% vs 前期間
                       </span>
                     )}
                     {prevAvgCalories === 0 && "前期間データなし"}
                   </p>
                 </div>
-                <div className="bg-[#1a331a] border border-[#244724] rounded-xl p-4">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">平均スコア</p>
+                <div className="bg-[var(--bg-card)] border border-[var(--border-card)] rounded-xl p-4">
+                  <p className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-1">平均スコア</p>
                   <p className={`text-xl font-black tabular-nums ${scoreColor(avgScore)}`}>
                     {withScore.length > 0 ? avgScore : "—"}
                   </p>
-                  <p className="text-[10px] text-slate-500">
+                  <p className="text-[10px] text-[var(--text-tertiary)]">
                     {prevAvgScore > 0 && (
-                      <span className={scoreDiff >= 0 ? "text-[#19e619]" : "text-amber-400"}>
+                      <span className={scoreDiff >= 0 ? "text-[var(--primary)]" : "text-amber-400"}>
                         {scoreDiff >= 0 ? "↑" : "↓"} {Math.abs(scoreDiff)} pt vs 前期間
                       </span>
                     )}
                   </p>
                 </div>
-                <div className="bg-[#1a331a] border border-[#244724] rounded-xl p-4">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">タンパク質 (平均)</p>
-                  <p className="text-xl font-black text-[#19e619] tabular-nums">
+                <div className="bg-[var(--bg-card)] border border-[var(--border-card)] rounded-xl p-4">
+                  <p className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-1">タンパク質 (平均)</p>
+                  <p className="text-xl font-black text-[var(--primary)] tabular-nums">
                     {avgProtein > 0 ? `${avgProtein}g` : "—"}
                   </p>
-                  <p className="text-[10px] text-slate-500">
+                  <p className="text-[10px] text-[var(--text-tertiary)]">
                     {prevAvgProtein > 0 && (
-                      <span className={proteinDiff >= 0 ? "text-[#19e619]" : "text-amber-400"}>
+                      <span className={proteinDiff >= 0 ? "text-[var(--primary)]" : "text-amber-400"}>
                         {proteinDiff >= 0 ? "↑" : "↓"} {Math.abs(proteinDiff)}g vs 前期間
                       </span>
                     )}
                   </p>
                 </div>
-                <div className="bg-[#1a331a] border border-[#244724] rounded-xl p-4">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">記録日数</p>
-                  <p className="text-xl font-black text-white tabular-nums">{filteredDays.length}</p>
-                  <p className="text-[10px] text-slate-500">{periodLabels[period]}</p>
+                <div className="bg-[var(--bg-card)] border border-[var(--border-card)] rounded-xl p-4">
+                  <p className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-1">記録日数</p>
+                  <p className="text-xl font-black text-[var(--text-primary)] tabular-nums">{filteredDays.length}</p>
+                  <p className="text-[10px] text-[var(--text-tertiary)]">{periodLabels[period]}</p>
                 </div>
               </section>
 
               {/* カロリー・スコア推移（折れ線グラフ） */}
               {chartData.length > 0 && (
-                <section className="bg-[#1a331a] border border-[#244724] rounded-xl p-4">
-                  <h2 className="text-sm font-bold text-slate-300 mb-3">カロリー・スコア推移</h2>
+                <section className="bg-[var(--bg-card)] border border-[var(--border-card)] rounded-xl p-4">
+                  <h2 className="text-sm font-bold text-[var(--text-secondary)] mb-3">カロリー・スコア推移</h2>
                   <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -265,11 +265,11 @@ export default function AnalyticsPage() {
                             const d = payload[0]?.payload;
                             const parsed = parseISO(labelStr);
                             return (
-                              <div className="bg-[#0e1c0e] border border-[#244724] rounded-lg px-3 py-2 shadow-xl text-xs">
-                                <p className="text-slate-400 mb-1">
+                              <div className="bg-[var(--surface-darker)] border border-[var(--border-card)] rounded-lg px-3 py-2 shadow-xl text-xs">
+                                <p className="text-[var(--text-tertiary)] mb-1">
                                   {isValid(parsed) ? format(parsed, "yyyy/M/d (EEE)", { locale: ja }) : labelStr}
                                 </p>
-                                <p className="text-white font-bold">{d?.calories ?? 0} kcal</p>
+                                <p className="text-[var(--text-primary)] font-bold">{d?.calories ?? 0} kcal</p>
                                 {d?.score != null && (
                                   <p className={scoreColor(d.score)}>スコア {d.score}</p>
                                 )}
@@ -303,8 +303,8 @@ export default function AnalyticsPage() {
               )}
 
               {/* 目標進捗（円形プログレス 3つ） */}
-              <section className="bg-[#1a331a] border border-[#244724] rounded-xl p-4">
-                <h2 className="text-sm font-bold text-slate-300 mb-4">目標進捗</h2>
+              <section className="bg-[var(--bg-card)] border border-[var(--border-card)] rounded-xl p-4">
+                <h2 className="text-sm font-bold text-[var(--text-secondary)] mb-4">目標進捗</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                   <div className="flex flex-col items-center">
                     <div className="relative w-24 h-24 flex items-center justify-center">
@@ -322,10 +322,10 @@ export default function AnalyticsPage() {
                           strokeWidth="8"
                         />
                       </svg>
-                      <span className="absolute text-lg font-bold text-white">{calorieGoalProgress}%</span>
+                      <span className="absolute text-lg font-bold text-[var(--text-primary)]">{calorieGoalProgress}%</span>
                     </div>
-                    <p className="text-xs font-bold text-slate-400 mt-2">カロリー目標</p>
-                    <p className="text-[10px] text-slate-500 text-center">目標 {GOAL_CALORIES} kcal/日</p>
+                    <p className="text-xs font-bold text-[var(--text-tertiary)] mt-2">カロリー目標</p>
+                    <p className="text-[10px] text-[var(--text-tertiary)] text-center">目標 {GOAL_CALORIES} kcal/日</p>
                   </div>
                   <div className="flex flex-col items-center">
                     <div className="relative w-24 h-24 flex items-center justify-center">
@@ -343,10 +343,10 @@ export default function AnalyticsPage() {
                           strokeWidth="8"
                         />
                       </svg>
-                      <span className="absolute text-lg font-bold text-white">{proteinProgress}%</span>
+                      <span className="absolute text-lg font-bold text-[var(--text-primary)]">{proteinProgress}%</span>
                     </div>
-                    <p className="text-xs font-bold text-slate-400 mt-2">タンパク質</p>
-                    <p className="text-[10px] text-slate-500 text-center">目標 {GOAL_PROTEIN}g/日</p>
+                    <p className="text-xs font-bold text-[var(--text-tertiary)] mt-2">タンパク質</p>
+                    <p className="text-[10px] text-[var(--text-tertiary)] text-center">目標 {GOAL_PROTEIN}g/日</p>
                   </div>
                   <div className="flex flex-col items-center">
                     <div className="relative w-24 h-24 flex items-center justify-center">
@@ -364,18 +364,18 @@ export default function AnalyticsPage() {
                           strokeWidth="8"
                         />
                       </svg>
-                      <span className="absolute text-lg font-bold text-white">{adherenceProgress}%</span>
+                      <span className="absolute text-lg font-bold text-[var(--text-primary)]">{adherenceProgress}%</span>
                     </div>
-                    <p className="text-xs font-bold text-slate-400 mt-2">達成率</p>
-                    <p className="text-[10px] text-slate-500 text-center">目標達成した日 / 記録日</p>
+                    <p className="text-xs font-bold text-[var(--text-tertiary)] mt-2">達成率</p>
+                    <p className="text-[10px] text-[var(--text-tertiary)] text-center">目標達成した日 / 記録日</p>
                   </div>
                 </div>
               </section>
 
               {/* カロリー棒グラフ + スコア（参考: Volume vs Weight） */}
               {chartData.length > 0 && (
-                <section className="bg-[#1a331a] border border-[#244724] rounded-xl p-4">
-                  <h2 className="text-sm font-bold text-slate-300 mb-3">日別カロリー・スコア</h2>
+                <section className="bg-[var(--bg-card)] border border-[var(--border-card)] rounded-xl p-4">
+                  <h2 className="text-sm font-bold text-[var(--text-secondary)] mb-3">日別カロリー・スコア</h2>
                   <div className="h-56">
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={chartData.slice(-14)} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -401,11 +401,11 @@ export default function AnalyticsPage() {
                             const d = payload[0]?.payload;
                             const parsed = parseISO(labelStr);
                             return (
-                              <div className="bg-[#0e1c0e] border border-[#244724] rounded-lg px-3 py-2 shadow-xl text-xs">
-                                <p className="text-slate-400 mb-1">
+                              <div className="bg-[var(--surface-darker)] border border-[var(--border-card)] rounded-lg px-3 py-2 shadow-xl text-xs">
+                                <p className="text-[var(--text-tertiary)] mb-1">
                                   {isValid(parsed) ? format(parsed, "M/d (EEE)", { locale: ja }) : labelStr}
                                 </p>
-                                <p className="text-white font-bold">{d?.calories ?? 0} kcal</p>
+                                <p className="text-[var(--text-primary)] font-bold">{d?.calories ?? 0} kcal</p>
                                 {d?.score != null && <p className={scoreColor(d.score)}>スコア {d.score}</p>}
                               </div>
                             );
@@ -428,17 +428,17 @@ export default function AnalyticsPage() {
               )}
 
               {/* 最近の日別一覧（参考: Recent Personal Records テーブル） */}
-              <section className="bg-[#1a331a] border border-[#244724] rounded-xl p-4">
+              <section className="bg-[var(--bg-card)] border border-[var(--border-card)] rounded-xl p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-sm font-bold text-slate-300">日別データ</h2>
-                  <Link href="/days" className="text-xs font-medium text-[#19e619] hover:underline">
+                  <h2 className="text-sm font-bold text-[var(--text-secondary)]">日別データ</h2>
+                  <Link href="/days" className="text-xs font-medium text-[var(--primary)] hover:underline">
                     履歴一覧
                   </Link>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="text-slate-500 text-xs uppercase tracking-wider border-b border-[#244724]">
+                      <tr className="text-[var(--text-tertiary)] text-xs uppercase tracking-wider border-b border-[var(--border-card)]">
                         <th className="text-left py-2 px-2">日付</th>
                         <th className="text-right py-2 px-2">カロリー</th>
                         <th className="text-right py-2 px-2">スコア</th>
@@ -448,21 +448,21 @@ export default function AnalyticsPage() {
                     </thead>
                     <tbody>
                       {filteredDays.slice(0, 15).map((d) => (
-                        <tr key={d.date} className="border-b border-[#244724]/50 hover:bg-[#214021]/50">
-                          <td className="py-2.5 px-2 text-slate-300">
+                        <tr key={d.date} className="border-b border-[var(--border-card)]/50 hover:bg-[var(--bg-card-hover)]/50">
+                          <td className="py-2.5 px-2 text-[var(--text-secondary)]">
                             {isValid(parseISO(d.date)) ? format(parseISO(d.date), "M/d (EEE)", { locale: ja }) : d.date}
                           </td>
                           <td className={`py-2.5 px-2 text-right font-medium tabular-nums ${calorieColor(d.calories)}`}>
                             {d.calories > 0 ? `${d.calories}` : "—"}
                           </td>
-                          <td className={`py-2.5 px-2 text-right font-medium tabular-nums ${d.hasEvaluation ? scoreColor(d.score) : "text-slate-500"}`}>
+                          <td className={`py-2.5 px-2 text-right font-medium tabular-nums ${d.hasEvaluation ? scoreColor(d.score) : "text-[var(--text-tertiary)]"}`}>
                             {d.hasEvaluation ? d.score : "—"}
                           </td>
-                          <td className="py-2.5 px-2 text-right text-slate-400 tabular-nums">{d.pfc?.p ?? "—"}</td>
+                          <td className="py-2.5 px-2 text-right text-[var(--text-tertiary)] tabular-nums">{d.pfc?.p ?? "—"}</td>
                           <td className="py-2.5 px-2">
                             <Link
                               href={`/day/${d.date}`}
-                              className="text-slate-500 hover:text-[#19e619] transition-colors inline-flex"
+                              className="text-[var(--text-tertiary)] hover:text-[var(--primary)] transition-colors inline-flex"
                               aria-label="詳細"
                             >
                               <span className="material-symbols-outlined text-lg">chevron_right</span>

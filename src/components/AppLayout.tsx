@@ -21,17 +21,17 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-[#112211]">
+    <div className="flex h-screen w-full overflow-hidden bg-[var(--bg-page)]">
       {/* 左サイドバー（固定幅） */}
-      <aside className="w-56 flex-shrink-0 flex flex-col bg-[#0e1c0e] border-r border-[#244724] h-screen overflow-y-auto">
+      <aside className="w-56 flex-shrink-0 flex flex-col bg-[var(--bg-sidebar)] border-r border-[var(--border-card)] h-screen overflow-y-auto">
         <div className="flex flex-col gap-4 p-4">
           <div className="flex gap-3 items-center mb-4">
-            <div className="w-11 h-11 rounded-full bg-[#1a331a] border-2 border-[#19e619]/20 flex items-center justify-center text-lg font-bold text-[#19e619]">
+            <div className="w-11 h-11 rounded-full bg-[var(--bg-card)] border-2 border-[var(--nav-active-border)] flex items-center justify-center text-lg font-bold text-[var(--primary)]">
               N
             </div>
             <div className="flex flex-col">
-              <span className="text-white text-sm font-bold">Nutrition</span>
-              <span className="text-[#19e619]/80 text-xs">個人用</span>
+              <span className="text-[var(--text-primary)] text-sm font-bold">からだノート</span>
+              <span className="text-[var(--primary)] opacity-80 text-xs">個人用</span>
             </div>
           </div>
           <nav className="flex flex-col gap-1">
@@ -43,8 +43,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                   href={href}
                   className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors ${
                     active
-                      ? "bg-[#19e619]/10 text-[#19e619] border border-[#19e619]/20 font-bold"
-                      : "hover:bg-white/5 text-slate-400 hover:text-white font-medium"
+                      ? "bg-[var(--nav-active-bg)] text-[var(--primary)] border border-[var(--nav-active-border)] font-bold"
+                      : "hover:bg-[var(--bg-card-hover)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] font-medium"
                   }`}
                 >
                   <span className={`material-symbols-outlined text-[20px] ${active ? "fill-1" : ""}`}>{icon}</span>
@@ -54,8 +54,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
             })}
           </nav>
         </div>
-        <div className="p-4 border-t border-[#244724]">
-          <p className="text-xs text-slate-500 text-center">Nutrition Tracker</p>
+        <div className="p-4 border-t border-[var(--border-card)]">
+          <p className="text-xs text-[var(--text-tertiary)] text-center">からだノート</p>
         </div>
       </aside>
 

@@ -171,30 +171,30 @@ export default function Home() {
     };
 
     return (
-        <div className="min-h-screen pb-20 bg-[#112211]">
+        <div className="min-h-screen pb-20 bg-[var(--bg-page)]">
             <Head>
-                <title>Nutrition Dashboard</title>
+                <title>今日のサマリー - からだノート</title>
                 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
             </Head>
 
             {/* 左タブは AppLayout で表示。ここでは日付のみ */}
-            <header className="bg-[#112211] border-b border-[#244724] sticky top-0 z-10 safe-area-top">
+            <header className="bg-[var(--bg-page)] border-b border-[var(--border-card)] sticky top-0 z-10 safe-area-top">
                 <div className="px-4 md:px-6 lg:px-8 min-h-[3.5rem] py-3 flex items-center">
-                    <h1 className="font-display text-lg font-bold text-white">今日のサマリー</h1>
-                    <span className="ml-3 text-slate-400 text-sm">{getEffectiveTodayStr()}</span>
+                    <h1 className="font-display text-lg font-bold text-[var(--text-primary)]">今日のサマリー</h1>
+                    <span className="ml-3 text-[var(--text-tertiary)] text-sm">{getEffectiveTodayStr()}</span>
                 </div>
             </header>
 
             <main className="w-full px-4 md:px-6 lg:px-8 py-6 space-y-6">
                 {/* 今日のサマリー：横並び4カード */}
                 <section aria-label="今日のサマリー">
-                    <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 px-1">今日のサマリー</h2>
+                    <h2 className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-4 px-1">今日のサマリー</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         {/* カロリー */}
-                        <div className="bg-[#1a331a] rounded-xl p-4 border border-[#244724] flex items-center gap-3">
+                        <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border-card)] flex items-center gap-3">
                             <div className="relative w-14 h-14 flex-shrink-0">
                                 <svg className="w-full h-full transform -rotate-90" aria-hidden>
-                                    <circle cx="28" cy="28" r="24" stroke="#1a331a" strokeWidth="6" fill="none" />
+                                    <circle cx="28" cy="28" r="24" stroke="var(--bg-card)" strokeWidth="6" fill="none" />
                                     <circle
                                         cx="28" cy="28" r="24"
                                         stroke={isOverGoal ? "#dc2626" : "#059669"}
@@ -205,22 +205,22 @@ export default function Home() {
                                     />
                                 </svg>
                                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                                    <span className="text-[9px] text-slate-400 font-bold">Total</span>
-                                    <span className="text-sm font-black text-white leading-tight">{todayCalories}</span>
+                                    <span className="text-[9px] text-[var(--text-tertiary)] font-bold">Total</span>
+                                    <span className="text-sm font-black text-[var(--text-primary)] leading-tight">{todayCalories}</span>
                                 </div>
                             </div>
                             <div className="flex-1 min-w-0">
-                                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">今日のカロリー</p>
-                                <p className="text-lg font-black text-white">{todayCalories} <span className="text-slate-500 font-normal text-sm">/ {GOAL_CALORIES}</span></p>
-                                <p className={`text-xs font-medium mt-0.5 ${isOverGoal ? "text-red-400" : "text-[#19e619]"}`}>
+                                <p className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-wider">今日のカロリー</p>
+                                <p className="text-lg font-black text-[var(--text-primary)]">{todayCalories} <span className="text-[var(--text-tertiary)] font-normal text-sm">/ {GOAL_CALORIES}</span></p>
+                                <p className={`text-xs font-medium mt-0.5 ${isOverGoal ? "text-red-400" : "text-[var(--primary)]"}`}>
                                     {isOverGoal ? `${todayCalories - GOAL_CALORIES} 超過` : `残り ${remaining} kcal`}
                                 </p>
                             </div>
                         </div>
 
                         {/* PFC */}
-                        <div className="bg-[#1a331a] rounded-xl p-4 border border-[#244724]">
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">PFCバランス</p>
+                        <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border-card)]">
+                            <p className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-3">PFCバランス</p>
                             <div className="space-y-2">
                                 {PFC_TARGETS.map((t) => {
                                     const actual = todayPfc[t.key];
@@ -232,45 +232,45 @@ export default function Home() {
                                             <div className="flex-1 h-1.5 bg-black/40 rounded-full overflow-hidden">
                                                 <div className="h-full rounded-full transition-all duration-700" style={{ width: `${pct}%`, backgroundColor: t.color }} />
                                             </div>
-                                            <span className="text-xs font-bold text-white w-12 text-right tabular-nums">{hasPfcData ? Math.round(actual) : "--"}/{goal}</span>
+                                            <span className="text-xs font-bold text-[var(--text-primary)] w-12 text-right tabular-nums">{hasPfcData ? Math.round(actual) : "--"}/{goal}</span>
                                         </div>
                                     );
                                 })}
                             </div>
-                            {!hasPfcData && <p className="text-[10px] text-slate-500 mt-1">未取得</p>}
+                            {!hasPfcData && <p className="text-[10px] text-[var(--text-tertiary)] mt-1">未取得</p>}
                         </div>
 
                         {/* 歩数 */}
-                        <div className="bg-[#1a331a] rounded-xl p-4 border border-[#244724]">
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">歩数</p>
+                        <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border-card)]">
+                            <p className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-1">歩数</p>
                             {todaySteps != null ? (
                                 <>
-                                    <p className="text-xl font-black text-white">{todaySteps.toLocaleString()} <span className="text-sm font-medium text-slate-400">歩</span></p>
+                                    <p className="text-xl font-black text-[var(--text-primary)]">{todaySteps.toLocaleString()} <span className="text-sm font-medium text-[var(--text-tertiary)]">歩</span></p>
                                     {todayExerciseCal != null && todayExerciseCal > 0 && (
-                                        <p className="text-xs text-[#19e619] font-medium mt-0.5">消費 {todayExerciseCal} kcal</p>
+                                        <p className="text-xs text-[var(--primary)] font-medium mt-0.5">消費 {todayExerciseCal} kcal</p>
                                     )}
                                 </>
                             ) : (
-                                <p className="text-slate-500 text-sm">—</p>
+                                <p className="text-[var(--text-tertiary)] text-sm">—</p>
                             )}
                         </div>
 
                         {/* あすけん同期 */}
-                        <div className="bg-[#1a331a] rounded-xl p-4 border border-[#244724] flex flex-col">
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">あすけん同期</p>
+                        <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border-card)] flex flex-col">
+                            <p className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-2">あすけん同期</p>
                             <button
                                 onClick={handleAskenSync}
                                 disabled={syncing}
-                                className="min-h-[40px] py-2 bg-[#19e619] text-[#112211] text-sm font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2 hover:bg-[#15c515]"
+                                className="min-h-[40px] py-2 bg-[var(--primary)] text-[var(--btn-primary-text)] text-sm font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2 hover:bg-[var(--primary-hover)]"
                             >
                                 {syncing ? <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> : null}
                                 {syncing ? "取得中..." : "今すぐ取得"}
                             </button>
                             {syncStatus?.lastSync && (
-                                <p className="text-[10px] text-slate-500 mt-2" suppressHydrationWarning>最終: {formatRelativeTime(syncStatus.lastSync.timestamp)}</p>
+                                <p className="text-[10px] text-[var(--text-tertiary)] mt-2" suppressHydrationWarning>最終: {formatRelativeTime(syncStatus.lastSync.timestamp)}</p>
                             )}
                             {syncResult && (
-                                <p className={`text-[10px] mt-1 ${syncResult.errors.length > 0 ? "text-amber-400" : "text-[#19e619]"}`}>
+                                <p className={`text-[10px] mt-1 ${syncResult.errors.length > 0 ? "text-amber-400" : "text-[var(--primary)]"}`}>
                                     {syncResult.errors.length > 0 ? "エラーあり" : `あすけん ${syncResult.askenCount}日 / Strong ${syncResult.strongCount}日`}
                                 </p>
                             )}
@@ -280,22 +280,22 @@ export default function Home() {
 
                 {/* AIアシスタント：横幅広め・表示領域を広く */}
                 <section aria-label="AIアシスタントの分析">
-                    <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 px-1">AIアシスタントの分析</h2>
-                    <div className="bg-[#1a331a] rounded-xl border border-[#244724] overflow-hidden">
-                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border-b border-[#244724]">
+                    <h2 className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-4 px-1">AIアシスタントの分析</h2>
+                    <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-card)] overflow-hidden">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-4 border-b border-[var(--border-card)]">
                             <div className="flex items-center gap-3">
-                                <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-[#19e619]/10">
-                                    <span className="material-symbols-outlined text-[#19e619] text-2xl">psychology</span>
+                                <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-[var(--accent-muted)]">
+                                    <span className="material-symbols-outlined text-[var(--primary)] text-2xl">psychology</span>
                                 </div>
                                 <div>
-                                    <h3 className="text-lg font-bold text-white">AI 食事評価</h3>
-                                    <p className="text-xs text-slate-400">毎朝5時自動 or 手動実行</p>
+                                    <h3 className="text-lg font-bold text-[var(--text-primary)]">AI 食事評価</h3>
+                                    <p className="text-xs text-[var(--text-tertiary)]">毎朝5時自動 or 手動実行</p>
                                 </div>
                             </div>
                             <button
                                 onClick={handleEvaluate}
                                 disabled={evaluating}
-                                className="min-h-[44px] px-5 py-2.5 bg-[#19e619] text-[#112211] text-sm font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2 hover:bg-[#15c515]"
+                                className="min-h-[44px] px-5 py-2.5 bg-[var(--primary)] text-[var(--btn-primary-text)] text-sm font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2 hover:bg-[var(--primary-hover)]"
                             >
                                 {evaluating ? <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> : null}
                                 {evaluating ? "評価中..." : "今日を評価"}
@@ -305,13 +305,13 @@ export default function Home() {
                             <div className="mx-4 mt-2 rounded-lg p-2.5 text-sm text-red-400 border border-red-900/50 bg-red-900/20" role="alert">{evalError}</div>
                         )}
                         {latestEval ? (
-                            <div className="border-t border-[#244724]">
-                                <div className="flex items-center justify-between px-4 py-2 bg-[#112211]/80 text-xs text-slate-500">
+                            <div className="border-t border-[var(--border-card)]">
+                                <div className="flex items-center justify-between px-4 py-2 bg-[var(--bg-page)]/80 text-xs text-[var(--text-tertiary)]">
                                     <span>{latestEval.date}</span>
                                     <span>{latestEval.model}</span>
                                 </div>
                                 <pre
-                                    className="p-5 md:p-8 text-xs md:text-sm text-white leading-relaxed whitespace-pre-wrap font-sans overflow-x-auto select-all cursor-text min-h-[280px] max-h-[70vh] overflow-y-auto"
+                                    className="p-5 md:p-8 text-xs md:text-sm text-[var(--text-primary)] leading-relaxed whitespace-pre-wrap font-sans overflow-x-auto select-all cursor-text min-h-[280px] max-h-[70vh] overflow-y-auto"
                                     role="textbox"
                                     tabIndex={0}
                                     aria-label="AI評価本文（一括選択してコピーできます）"
@@ -321,7 +321,7 @@ export default function Home() {
                             </div>
                         ) : (
                             <div className="p-8 text-center">
-                                <p className="text-slate-400">まだ評価がありません。「今日を評価」を押すか、毎朝5時に前日分が自動生成されます。</p>
+                                <p className="text-[var(--text-tertiary)]">まだ評価がありません。「今日を評価」を押すか、毎朝5時に前日分が自動生成されます。</p>
                             </div>
                         )}
                     </div>

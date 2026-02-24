@@ -68,7 +68,7 @@ export default function MealsIndex() {
     return (
         <div className="min-h-screen bg-gray-50 font-sans text-gray-900">
             <Head>
-                <title>食事一覧 - Nutrition Tracker</title>
+                <title>食事一覧 - からだノート</title>
             </Head>
 
             {/* ヘッダー */}

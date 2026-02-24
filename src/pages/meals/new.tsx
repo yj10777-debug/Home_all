@@ -87,7 +87,7 @@ export default function NewMeal() {
     return (
         <div className="min-h-screen bg-gray-50 font-sans text-gray-900">
             <Head>
-                <title>食事を記録 - Nutrition Tracker</title>
+                <title>食事を記録 - からだノート</title>
             </Head>
 
             {/* ヘッダー */}

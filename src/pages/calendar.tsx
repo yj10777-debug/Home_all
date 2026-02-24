@@ -131,51 +131,51 @@ export default function CalendarPage() {
   return (
     <>
       <Head>
-        <title>栄養カレンダー — Nutrition</title>
+        <title>栄養カレンダー — からだノート</title>
       </Head>
       <main className="p-4 sm:p-6 min-h-full">
         <div className="max-w-6xl mx-auto">
-          <h1 className="text-2xl font-bold text-white mb-1 flex items-center gap-2">
-            <span className="material-symbols-outlined text-[#19e619]">calendar_month</span>
+          <h1 className="text-2xl font-bold text-[var(--text-primary)] mb-1 flex items-center gap-2">
+            <span className="material-symbols-outlined text-[var(--primary)]">calendar_month</span>
             栄養カレンダー
           </h1>
-          <p className="text-slate-400 text-sm mb-6">マクロとカロリー目標を追跡</p>
+          <p className="text-[var(--text-tertiary)] text-sm mb-6">マクロとカロリー目標を追跡</p>
 
           {loading ? (
-            <div className="flex items-center justify-center py-16 text-slate-400 text-sm">
+            <div className="flex items-center justify-center py-16 text-[var(--text-tertiary)] text-sm">
               読み込み中...
             </div>
           ) : (
             <>
               {/* 月間サマリーカード（参考デザイン 4枚） */}
               <section className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
-                <div className="bg-[#1a331a] border border-[#244724] rounded-xl p-4">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">月間平均</p>
-                  <p className="text-xl font-black text-white tabular-nums">
+                <div className="bg-[var(--bg-card)] border border-[var(--border-card)] rounded-xl p-4">
+                  <p className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-1">月間平均</p>
+                  <p className="text-xl font-black text-[var(--text-primary)] tabular-nums">
                     {monthlyAvgKcal > 0 ? `${monthlyAvgKcal.toLocaleString()} kcal` : "—"}
                   </p>
-                  <p className="text-[10px] text-slate-500">{format(currentMonth, "yyyy年M月", { locale: ja })}</p>
+                  <p className="text-[10px] text-[var(--text-tertiary)]">{format(currentMonth, "yyyy年M月", { locale: ja })}</p>
                 </div>
-                <div className="bg-[#1a331a] border border-[#244724] rounded-xl p-4">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">タンパク質目標</p>
-                  <p className="text-xl font-black text-[#19e619] tabular-nums">{GOAL_PFC.protein}g</p>
-                  <p className="text-[10px] text-slate-500">平均 {avgP > 0 ? `${avgP}g/日` : "—"}</p>
+                <div className="bg-[var(--bg-card)] border border-[var(--border-card)] rounded-xl p-4">
+                  <p className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-1">タンパク質目標</p>
+                  <p className="text-xl font-black text-[var(--primary)] tabular-nums">{GOAL_PFC.protein}g</p>
+                  <p className="text-[10px] text-[var(--text-tertiary)]">平均 {avgP > 0 ? `${avgP}g/日` : "—"}</p>
                 </div>
-                <div className="bg-[#1a331a] border border-[#244724] rounded-xl p-4">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">達成率</p>
-                  <p className="text-xl font-black text-white tabular-nums">{adherence}%</p>
-                  <p className="text-[10px] text-slate-500">{goalMetCount}日 / {withCalories.length}日</p>
+                <div className="bg-[var(--bg-card)] border border-[var(--border-card)] rounded-xl p-4">
+                  <p className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-1">達成率</p>
+                  <p className="text-xl font-black text-[var(--text-primary)] tabular-nums">{adherence}%</p>
+                  <p className="text-[10px] text-[var(--text-tertiary)]">{goalMetCount}日 / {withCalories.length}日</p>
                 </div>
-                <div className="bg-[#1a331a] border border-[#244724] rounded-xl p-4">
-                  <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">記録日数</p>
-                  <p className="text-xl font-black text-white tabular-nums">{monthDays.length}</p>
-                  <p className="text-[10px] text-slate-500">{format(currentMonth, "yyyy年M月", { locale: ja })}</p>
+                <div className="bg-[var(--bg-card)] border border-[var(--border-card)] rounded-xl p-4">
+                  <p className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-1">記録日数</p>
+                  <p className="text-xl font-black text-[var(--text-primary)] tabular-nums">{monthDays.length}</p>
+                  <p className="text-[10px] text-[var(--text-tertiary)]">{format(currentMonth, "yyyy年M月", { locale: ja })}</p>
                 </div>
               </section>
 
               {/* 2カラム: カレンダー | 選択日詳細 */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 bg-[#0e1c0e] rounded-xl border border-[#244724] p-4 sm:p-6">
+                <div className="lg:col-span-2 bg-[var(--bg-sidebar)] rounded-xl border border-[var(--border-card)] p-4 sm:p-6">
                   <MonthCalendar
                     days={days}
                     selectedDate={selectedDate}
@@ -185,8 +185,8 @@ export default function CalendarPage() {
                   />
                 </div>
 
-                <div className="bg-[#1a331a] border border-[#244724] rounded-xl p-4 sm:p-6 h-fit">
-                  <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider mb-4">
+                <div className="bg-[var(--bg-card)] border border-[var(--border-card)] rounded-xl p-4 sm:p-6 h-fit">
+                  <h2 className="text-sm font-bold text-[var(--text-secondary)] uppercase tracking-wider mb-4">
                     {selectedDate
                       ? (() => {
                           try {
@@ -198,13 +198,13 @@ export default function CalendarPage() {
                       : "日付を選択"}
                   </h2>
                   {detailLoading ? (
-                    <div className="flex items-center justify-center py-12 text-slate-500 text-sm">
+                    <div className="flex items-center justify-center py-12 text-[var(--text-tertiary)] text-sm">
                       読み込み中...
                     </div>
                   ) : !selectedDate ? (
-                    <p className="text-slate-500 text-sm">カレンダーで日付をクリックすると詳細が表示されます</p>
+                    <p className="text-[var(--text-tertiary)] text-sm">カレンダーで日付をクリックすると詳細が表示されます</p>
                   ) : !dayDetail ? (
-                    <p className="text-slate-500 text-sm">この日のデータはありません</p>
+                    <p className="text-[var(--text-tertiary)] text-sm">この日のデータはありません</p>
                   ) : (
                     <div className="space-y-5">
                       {/* 円形プログレス（参考: KCAL LEFT） */}
@@ -226,27 +226,27 @@ export default function CalendarPage() {
                             />
                           </svg>
                           <div className="absolute inset-0 flex flex-col items-center justify-center">
-                            <span className="text-lg font-black text-white tabular-nums">{totalCalories}</span>
-                            <span className="text-[10px] text-slate-400">残り {kcalLeft} kcal</span>
+                            <span className="text-lg font-black text-[var(--text-primary)] tabular-nums">{totalCalories}</span>
+                            <span className="text-[10px] text-[var(--text-tertiary)]">残り {kcalLeft} kcal</span>
                           </div>
                         </div>
                       </div>
                       {/* PFC */}
                       <div className="grid grid-cols-3 gap-2 text-center text-xs">
                         <div>
-                          <p className="text-slate-500">P</p>
-                          <p className="font-bold text-[#19e619]">{Math.round(pfc.protein)}g</p>
-                          <p className="text-slate-600">目標 {GOAL_PFC.protein}g</p>
+                          <p className="text-[var(--text-tertiary)]">P</p>
+                          <p className="font-bold text-[var(--primary)]">{Math.round(pfc.protein)}g</p>
+                          <p className="text-[var(--text-tertiary)]">目標 {GOAL_PFC.protein}g</p>
                         </div>
                         <div>
-                          <p className="text-slate-500">F</p>
+                          <p className="text-[var(--text-tertiary)]">F</p>
                           <p className="font-bold text-blue-400">{Math.round(pfc.fat)}g</p>
-                          <p className="text-slate-600">目標 {GOAL_PFC.fat}g</p>
+                          <p className="text-[var(--text-tertiary)]">目標 {GOAL_PFC.fat}g</p>
                         </div>
                         <div>
-                          <p className="text-slate-500">C</p>
+                          <p className="text-[var(--text-tertiary)]">C</p>
                           <p className="font-bold text-orange-400">{Math.round(pfc.carbs)}g</p>
-                          <p className="text-slate-600">目標 {GOAL_PFC.carbs}g</p>
+                          <p className="text-[var(--text-tertiary)]">目標 {GOAL_PFC.carbs}g</p>
                         </div>
                       </div>
                       {/* 食事セクション */}
@@ -256,31 +256,31 @@ export default function CalendarPage() {
                           return (
                             <div key={mealType}>
                               <div className="flex justify-between items-center mb-1">
-                                <span className="text-xs font-bold text-slate-400 uppercase">
+                                <span className="text-xs font-bold text-[var(--text-tertiary)] uppercase">
                                   {mealLabels[mealType] ?? mealType}
                                 </span>
-                                <span className="text-[10px] text-slate-500">{total} kcal</span>
+                                <span className="text-[10px] text-[var(--text-tertiary)]">{total} kcal</span>
                               </div>
                               <ul className="space-y-1">
                                 {items.slice(0, 3).map((item, i) => (
-                                  <li key={i} className="text-xs text-slate-300 truncate">
+                                  <li key={i} className="text-xs text-[var(--text-secondary)] truncate">
                                     {item.name} {item.calories}kcal
                                   </li>
                                 ))}
                                 {items.length > 3 && (
-                                  <li className="text-[10px] text-slate-500">他 {items.length - 3} 件</li>
+                                  <li className="text-[10px] text-[var(--text-tertiary)]">他 {items.length - 3} 件</li>
                                 )}
                               </ul>
                             </div>
                           );
                         })}
                         {Object.keys(groupedMeals).length === 0 && (
-                          <p className="text-slate-500 text-xs">食事データなし</p>
+                          <p className="text-[var(--text-tertiary)] text-xs">食事データなし</p>
                         )}
                       </div>
                       <Link
                         href={`/day/${selectedDate}`}
-                        className="block w-full text-center py-2.5 rounded-lg bg-[#19e619]/10 text-[#19e619] font-medium text-sm border border-[#19e619]/30 hover:bg-[#19e619]/20 transition-colors"
+                        className="block w-full text-center py-2.5 rounded-lg bg-[var(--accent-muted)] text-[var(--primary)] font-medium text-sm border border-[var(--primary)]/30 hover:bg-[var(--accent-muted)] transition-colors transition-colors"
                       >
                         日別詳細を見る
                       </Link>
