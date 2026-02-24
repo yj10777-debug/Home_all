@@ -24,7 +24,13 @@ You can start editing the page by modifying `src/app/page.tsx`. The page auto-up
 - **POST** `/api/meals` — Create a meal log with items. Body: `{ mealLog: { loggedAt, mealType, ... }, items: [ { name, cal, ... } ] }`.
 - **DELETE** `/api/meals/:id` — Delete a meal log (ownership checked via JWT).
 
-Set `SUPABASE_JWT_SECRET` in `.env.local` (from Supabase → Project Settings → API → JWT Secret) for JWT verification.
+### 環境変数
+
+プロジェクトルートに `.env` を作成し、以下を設定してください。`.env.example` をコピーして編集すると便利です。
+
+- **DATABASE_URL**（必須）— Prisma / DB 接続用。例: `postgresql://USER:PASSWORD@localhost:5432/nutrition?schema=public`  
+  - 未設定だと `npm run db`（Prisma Studio）やマイグレーションが失敗します。
+- **SUPABASE_JWT_SECRET** — JWT 検証用（Supabase → Project Settings → API → JWT Secret）。`.env.local` でも可。
 
 **Tests:** `npm test` (Jest; Prisma/auth mocked in `tests/api/meals.test.ts`).
 
