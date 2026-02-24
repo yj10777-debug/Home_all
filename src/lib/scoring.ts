@@ -2,14 +2,14 @@
  * 筋トレ・食事 評価スコアモデル（100点満点）
  * 減量しつつ筋量維持＋登山適性向上を目的とした日次スコア計算
  */
-import { DayData, GOAL_CALORIES, GOAL_PFC } from './gemini';
+import { DayData } from './gemini';
+import { DEFAULT_GOALS, type Goals } from './dbConfig';
 
 /** デフォルト体重（kg）- データがない場合に使用 */
 const DEFAULT_WEIGHT_KG = 75;
 
-/** 推定消費カロリーの基準（データがない場合＝目標カロリーを維持想定） */
-function getEstimatedExpenditure(): number {
-  return GOAL_CALORIES;
+function getEstimatedExpenditure(goalCalories: number): number {
+  return goalCalories;
 }
 
 /** スコア内訳（新モデル: エネルギー30+たんぱく質20+刺激20+回復15+活動量10+栄養5+登山ボーナス最大8） */
@@ -60,8 +60,8 @@ function getIntake(day: DayData): { calories: number; protein: number; fat: numb
 }
 
 /** ① エネルギーバランス（30点） カロリー差 = 摂取 - 推定消費 */
-function scoreEnergy(calories: number): { score: number; label: string } {
-  const expenditure = getEstimatedExpenditure();
+function scoreEnergy(calories: number, goalCalories: number): { score: number; label: string } {
+  const expenditure = getEstimatedExpenditure(goalCalories);
   const diff = calories - expenditure;
 
   if (diff >= -500 && diff <= -300) return { score: 30, label: '-300〜-500 (30点)' };
@@ -109,9 +109,7 @@ function scoreStimulus(day: DayData): { score: number; label: string } {
   let count = 0;
   if (hasCompound) count++;
   if (totalSets >= 10) count++;
-  // 6-12回レンジ: データに回数が無いため実施日は加点（暫定）
   count++;
-  // 漸進性: 単日では判定不可。実施日は加点（暫定）
   count++;
 
   const score = Math.min(20, count * 5);
@@ -156,7 +154,6 @@ function scoreClimbingBonus(day: DayData, hasLower: boolean): { score: number; l
     bonus += 3;
     parts.push('下半身+3');
   }
-  // 体脂肪率: データなし → 0
   const exCal = day.exerciseCalories ?? 0;
   if (exCal >= 100) {
     bonus += 2;
@@ -167,10 +164,15 @@ function scoreClimbingBonus(day: DayData, hasLower: boolean): { score: number; l
 
 /**
  * 1日分のデータから新スコアモデルでスコアを計算する
+ * @param goals 未指定時は DEFAULT_GOALS を使用
  */
-export function calculateDailyScore(day: DayData, weightKg: number = DEFAULT_WEIGHT_KG): ScoreBreakdown {
+export function calculateDailyScore(
+  day: DayData,
+  weightKg: number = DEFAULT_WEIGHT_KG,
+  goals: Goals = DEFAULT_GOALS
+): ScoreBreakdown {
   const intake = getIntake(day);
-  const energy = scoreEnergy(intake.calories);
+  const energy = scoreEnergy(intake.calories, goals.calories);
   const protein = scoreProtein(intake.protein, weightKg);
   const stimulus = scoreStimulus(day);
   const recovery = scoreRecovery(day);

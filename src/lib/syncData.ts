@@ -11,8 +11,6 @@ const SECRETS_DIR = path.join(process.cwd(), "secrets");
 const DEFAULT_STRONG_PATH = process.env.STRONG_DATA_PATH || "G:\\マイドライブ\\30_Home\\00_Training";
 const ASKEN_STATE_FILE = path.join(SECRETS_DIR, "asken-state.json");
 
-// ─── 型定義 ─────────────────────────────────────────
-
 type AskenItem = { mealType: string; name: string; amount: string; calories: number };
 type AskenExercise = { steps: number; calories: number };
 type AskenDayResult = { date: string; items: AskenItem[]; nutrients: Partial<Record<string, Record<string, string>>>; exercise?: AskenExercise };
@@ -20,8 +18,6 @@ type AskenDayResult = { date: string; items: AskenItem[]; nutrients: Partial<Rec
 type StrongExercise = { name: string; sets: number; volumeKg: number; reps?: number };
 type StrongWorkout = { title: string; totals: { sets: number; reps: number; volumeKg: number }; exercises: StrongExercise[] };
 type StrongDayData = { workouts: StrongWorkout[]; totals: { workouts: number; sets: number; volumeKg: number } };
-
-// ─── ユーティリティ ─────────────────────────────────
 
 /**
  * 日付範囲を生成する
@@ -67,28 +63,23 @@ function runAskenForDate(dateStr: string): Promise<{ ok: boolean; data?: AskenDa
         resolve({ ok: false, error: stderr.slice(0, 500) || `exit ${code}` });
         return;
       }
-      // stdout から JSON をパース（run.ts は JSON + "Saved: ..." を出力する）
       try {
-        // 最初の有効な JSON ブロックを抽出
         const jsonMatch = stdout.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           const data = JSON.parse(jsonMatch[0]) as AskenDayResult;
           resolve({ ok: true, data });
         } else {
-          // JSONが見つからない場合、stdoutの先頭をエラーとして記録
           console.warn(`Asken ${dateStr}: stdout に JSON が見つかりません: ${stdout.slice(0, 200)}`);
           resolve({ ok: true });
         }
       } catch (parseErr) {
         console.warn(`Asken ${dateStr}: JSON パース失敗:`, parseErr, stdout.slice(0, 200));
-        resolve({ ok: true }); // パース失敗でも scrape 自体は成功
+        resolve({ ok: true });
       }
     });
     proc.on("error", (e) => resolve({ ok: false, error: String(e) }));
   });
 }
-
-// ─── Strong パーサー ────────────────────────────────
 
 function parseDate(line: string): string | null {
   const m = line.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
@@ -223,8 +214,6 @@ export function parseStrongFiles(
   return { data: buildStrongData(allParsed), errors };
 }
 
-// ─── メイン同期処理 ─────────────────────────────────
-
 /**
  * あすけん + Strong データを取得し、DB に upsert する
  * @param options.from 開始日 (YYYY-MM-DD)。省略時は today-3
@@ -240,7 +229,6 @@ export async function syncData(options?: { from?: string; to?: string }): Promis
   const targetDates = getTargetDates(options?.from, options?.to);
   const dateRange = new Set(targetDates);
 
-  // あすけんデータ取得 → DB に upsert
   const upsertAskenDay = async (date: string, data: AskenDayResult) => {
     const payload = {
       askenItems: data.items as unknown as Prisma.InputJsonValue,
@@ -266,14 +254,11 @@ export async function syncData(options?: { from?: string; to?: string }): Promis
         errors.push(`DB保存 Asken ${d}: ${String(e)}`);
       }
     } else if (result.ok) {
-      // stdout パースできなかった場合: 既存データがある日はファイルで上書きしない
-      // （ファイルは前回取得の古い内容の可能性があり、追加入力後の更新が反映されなくなる）
       const jsonPath = path.join(SECRETS_DIR, `asken-day-${d}.json`);
       if (fs.existsSync(jsonPath)) {
         try {
           const existing = await prisma.dailyData.findUnique({ where: { date: d }, select: { date: true } });
           if (!existing) {
-            // 新規の日付のみファイルから投入（初回取得の取りこぼし対策）
             const fileData = JSON.parse(fs.readFileSync(jsonPath, "utf-8")) as AskenDayResult;
             await upsertAskenDay(d, fileData);
             askenCount += 1;
@@ -290,25 +275,17 @@ export async function syncData(options?: { from?: string; to?: string }): Promis
   }
 
   // Strong データ取得 → DB に upsert
-  // 1) ローカルフォルダがあればそちらから読む
-  // 2) なければ Google Drive API から取得
   const strongPath = DEFAULT_STRONG_PATH;
   let strongMap = new Map<string, StrongDayData>();
 
-  console.log(`Strong: パス "${strongPath}" を確認中...`);
   if (fs.existsSync(strongPath)) {
-    console.log(`Strong: ローカルフォルダからファイルを読み込み中...`);
-    // ローカルフォルダから読み込み
     const { data, errors: strongErrors } = parseStrongFiles(strongPath, dateRange);
     strongMap = data;
-    console.log(`Strong: ${strongMap.size} 日分のデータを検出 (対象範囲: ${Array.from(dateRange).join(", ")})`);
     errors.push(...strongErrors);
   } else {
-    // Google Drive から取得を試みる
     try {
       const driveFiles = await fetchStrongFilesFromDrive();
       if (driveFiles && driveFiles.length > 0) {
-        console.log(`Google Drive: ${driveFiles.length} 件のファイルを取得`);
         const allParsed: { date: string; workoutName: string; exercises: { name: string; weight: number; reps: number }[] }[] = [];
         for (const file of driveFiles) {
           try {
@@ -323,8 +300,6 @@ export async function syncData(options?: { from?: string; to?: string }): Promis
           }
         }
         strongMap = buildStrongData(allParsed);
-      } else if (driveFiles === null) {
-        console.log("Google Drive 未設定（Strong スキップ）");
       }
     } catch (e) {
       errors.push(`Google Drive: ${String(e)}`);
@@ -350,7 +325,6 @@ export async function syncData(options?: { from?: string; to?: string }): Promis
     }
   }
 
-  // dayCount = DB の DailyData レコード数
   const dayCount = await prisma.dailyData.count();
 
   return { askenCount, strongCount, dayCount, errors };

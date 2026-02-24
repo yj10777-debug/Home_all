@@ -44,30 +44,27 @@ export default function MonthCalendar({
         onMonthChange?.(currentMonth);
     }, [currentMonth, onMonthChange]);
 
-    if (!days) {
-        return <div className="h-full flex items-center justify-center text-gray-400 text-sm">データ読み込み中...</div>;
-    }
+  if (!days) {
+    return <div className="h-full flex items-center justify-center text-gray-400 text-sm">データ読み込み中...</div>;
+  }
 
-    // 日付文字列(YYYY-MM-DD)をキーにしたマップを作成
-    const daysMap = new Map<string, CalendarDay>();
-    days.forEach(d => daysMap.set(d.date, d));
+  const daysMap = new Map<string, CalendarDay>();
+  days.forEach(d => daysMap.set(d.date, d));
 
-    // カレンダーグリッド生成
-    const monthStart = startOfMonth(currentMonth);
+  const monthStart = startOfMonth(currentMonth);
     const monthEnd = endOfMonth(currentMonth);
-    const startDayOfWeek = getDay(monthStart); // 0(Sun) - 6(Sat)
+    const startDayOfWeek = getDay(monthStart);
 
-    const allDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
+  const allDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
 
-    /** スコアによる色分け（テーマの primary を使用） */
+  /** スコアによる色分け */
     const getScoreColor = (score: number) => {
         if (score >= 80) return 'text-[var(--primary)]';
         if (score >= 60) return 'text-amber-400';
         return 'text-red-400';
     };
 
-    /** 目標達成：スコア80以上 または カロリーが目標±10%以内 */
-    const isGoalMet = (d: CalendarDay) =>
+  const isGoalMet = (d: CalendarDay) =>
         (d.hasEvaluation && d.score >= 80) ||
         (d.calories > 0 && Math.abs(d.calories - GOAL_CALORIES) / GOAL_CALORIES <= 0.1);
 

@@ -137,7 +137,6 @@ export default function Home() {
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "Evaluation failed");
-            // 最新評価を更新（APIは { success, evaluation } を返す）
             if (data.success && data.evaluation) {
                 const ev = data.evaluation;
                 setLatestEval({ date: ev.date, response: ev.response, model: ev.model });
@@ -152,15 +151,13 @@ export default function Home() {
     const isOverGoal = todayCalories > GOAL_CALORIES * 1.1; // 10%許容
     const remaining = Math.max(0, GOAL_CALORIES - todayCalories);
 
-    // スケジュールフォーマット
     const formatSchedule = (cron: string) => {
         if (cron === "0 5,12,19 * * *") return "毎日 5時/12時/19時";
         return cron;
     };
 
-    // 相対時間表示（不正日付・ハイドレーション対策）
     const formatRelativeTime = (timestamp: string): string => {
-        if (!mounted) return ""; // 初回レンダーでは空（SSR/ハイドレーション時の不一致を防ぐ）
+        if (!mounted) return "";
         try {
             const d = new Date(timestamp);
             if (isNaN(d.getTime())) return "";
@@ -177,7 +174,6 @@ export default function Home() {
                 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
             </Head>
 
-            {/* 左タブは AppLayout で表示。ここでは日付のみ */}
             <header className="bg-[var(--bg-page)] border-b border-[var(--border-card)] sticky top-0 z-10 safe-area-top">
                 <div className="px-4 md:px-6 lg:px-8 min-h-[3.5rem] py-3 flex items-center">
                     <h1 className="font-display text-lg font-bold text-[var(--text-primary)]">今日のサマリー</h1>
@@ -186,11 +182,9 @@ export default function Home() {
             </header>
 
             <main className="w-full px-4 md:px-6 lg:px-8 py-6 space-y-6">
-                {/* 今日のサマリー：横並び4カード */}
                 <section aria-label="今日のサマリー">
                     <h2 className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-4 px-1">今日のサマリー</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                        {/* カロリー */}
                         <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border-card)] flex items-center gap-3">
                             <div className="relative w-14 h-14 flex-shrink-0">
                                 <svg className="w-full h-full transform -rotate-90" aria-hidden>
@@ -218,7 +212,6 @@ export default function Home() {
                             </div>
                         </div>
 
-                        {/* PFC */}
                         <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border-card)]">
                             <p className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-3">PFCバランス</p>
                             <div className="space-y-2">
@@ -240,7 +233,6 @@ export default function Home() {
                             {!hasPfcData && <p className="text-[10px] text-[var(--text-tertiary)] mt-1">未取得</p>}
                         </div>
 
-                        {/* 歩数 */}
                         <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border-card)]">
                             <p className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-1">歩数</p>
                             {todaySteps != null ? (
@@ -255,7 +247,6 @@ export default function Home() {
                             )}
                         </div>
 
-                        {/* あすけん同期 */}
                         <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border-card)] flex flex-col">
                             <p className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-2">あすけん同期</p>
                             <button
@@ -278,7 +269,6 @@ export default function Home() {
                     </div>
                 </section>
 
-                {/* AIアシスタント：横幅広め・表示領域を広く */}
                 <section aria-label="AIアシスタントの分析">
                     <h2 className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-4 px-1">AIアシスタントの分析</h2>
                     <div className="bg-[var(--bg-card)] rounded-xl border border-[var(--border-card)] overflow-hidden">

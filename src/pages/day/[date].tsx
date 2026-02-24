@@ -52,7 +52,6 @@ export default function DayPage() {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
-  // AI 評価
   const [aiEval, setAiEval] = useState<AiEval | null>(null);
   const [evaluating, setEvaluating] = useState(false);
   const [evalError, setEvalError] = useState<string | null>(null);
@@ -69,7 +68,6 @@ export default function DayPage() {
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
 
-    // AI 評価履歴を取得（常に最新を取得）
     fetch(`/api/ai/history?date=${date}&type=daily`, noCache)
       .then((r) => r.json())
       .then((d) => {
@@ -107,7 +105,6 @@ export default function DayPage() {
 
   const hasStrong = data?.strong && (data.strong.workouts?.length ?? 0) > 0;
 
-  // 食事アイテムをmealTypeごとにグルーピング
   const groupedMeals: Record<string, AskenItem[]> = {};
   if (data?.asken?.items) {
     for (const item of data.asken.items) {
@@ -117,7 +114,6 @@ export default function DayPage() {
     }
   }
 
-  // 合計カロリー（API の calories を優先、なければ items から算出）
   const totalCalories = data?.calories ?? data?.asken?.items?.reduce((sum, i) => sum + (i.calories || 0), 0) ?? 0;
   const pfc = data?.pfc ?? { protein: 0, fat: 0, carbs: 0 };
   const kcalLeft = Math.max(0, GOAL_CALORIES - totalCalories);

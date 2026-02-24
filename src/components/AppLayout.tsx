@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { href: "/days", label: "履歴", icon: "history_edu" },
   { href: "/calendar", label: "カレンダー", icon: "calendar_month" },
   { href: "/analytics", label: "アナリティクス", icon: "analytics" },
+  { href: "/personal", label: "パーソナル", icon: "person" },
   { href: "/settings", label: "設定", icon: "settings" },
 ] as const;
 
@@ -22,7 +23,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[var(--bg-page)]">
-      {/* 左サイドバー（固定幅） */}
       <aside className="w-56 flex-shrink-0 flex flex-col bg-[var(--bg-sidebar)] border-r border-[var(--border-card)] h-screen overflow-y-auto">
         <div className="flex flex-col gap-4 p-4">
           <div className="flex gap-3 items-center mb-4">
@@ -59,7 +59,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      {/* メイン：残り幅すべて使い AI 評価などを広く表示 */}
       <main className="flex-1 flex flex-col min-w-0 overflow-y-auto overflow-x-hidden">
         {children}
       </main>

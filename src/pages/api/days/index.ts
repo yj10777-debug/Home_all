@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../lib/prisma";
 import { calculateDailyScore } from "../../../lib/scoring";
+import { getGoals } from "../../../lib/dbConfig";
 import type { DayData, AskenItem, AskenNutrients, StrongData } from "../../../lib/gemini";
 
 /**
@@ -14,6 +15,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    const goals = await getGoals();
     const records = await prisma.dailyData.findMany({
       select: {
         date: true,
@@ -89,7 +91,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         exerciseCalories: r.exerciseCalories ?? null,
       };
 
-      const scoreResult = calculateDailyScore(dayData);
+      const scoreResult = calculateDailyScore(dayData, undefined, goals);
       const hasEvaluation = evaluatedDates.has(r.date);
 
       return {

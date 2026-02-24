@@ -74,7 +74,6 @@ export default function SettingsPage() {
           <h1 className="text-2xl font-bold text-[var(--text-primary)] mb-1">設定</h1>
           <p className="text-[var(--text-tertiary)] text-sm mb-6">テーマとAI評価用のシステムプロンプトを編集できます。</p>
 
-          {/* 色のテーマ */}
           <div className="bg-[var(--bg-card)] border border-[var(--border-card)] rounded-xl p-6 mb-6">
             <h2 className="text-lg font-bold text-[var(--text-primary)] mb-2">色のテーマ</h2>
             <p className="text-[var(--text-tertiary)] text-xs mb-4">画面の見た目を切り替えます。</p>

@@ -70,7 +70,6 @@ export default function CalendarPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  // 選択日の詳細を取得
   useEffect(() => {
     if (!selectedDate) {
       setDayDetail(null);
@@ -86,7 +85,6 @@ export default function CalendarPage() {
 
   const onMonthChange = useCallback((month: Date) => setCurrentMonth(month), []);
 
-  // 表示月の日付だけにフィルタ
   const monthDays = days.filter((d) => {
     const parsed = parseISO(d.date);
     return isWithinInterval(parsed, { start: startOfMonth(currentMonth), end: endOfMonth(currentMonth) });

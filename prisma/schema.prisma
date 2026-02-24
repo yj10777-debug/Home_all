@@ -104,3 +104,11 @@ model SyncLog {
   dayCount    Int      @default(0) @map("day_count")
   errors      String?  // JSON文字列
 }
+
+/// アプリ設定（目標・パーソナル情報、常にid=1の1レコード）
+model AppConfig {
+  id          Int   @id @default(1)
+  goals       Json? // { calories, protein, fat, carbs }
+  personal    Json? // { heightCm, weightKg, age, sex?, activityLevel? }
+  updatedAt   DateTime @updatedAt
+}

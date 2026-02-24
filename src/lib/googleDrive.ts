@@ -84,7 +84,6 @@ async function downloadFile(accessToken: string, fileId: string): Promise<string
 export async function fetchStrongFilesFromDrive(): Promise<{ name: string; content: string }[] | null> {
   const config = getConfig();
   if (!config || !config.folderId) {
-    console.log("Google Drive 設定が未完了（スキップ）");
     return null;
   }
 
@@ -92,13 +91,9 @@ export async function fetchStrongFilesFromDrive(): Promise<{ name: string; conte
   const files = await listTxtFiles(accessToken, config.folderId);
 
   if (files.length === 0) {
-    console.log("Google Drive: .txt ファイルが見つかりません");
     return [];
   }
 
-  console.log(`Google Drive: ${files.length} 件の .txt ファイルを検出`);
-
-  // 全ファイルをダウンロード
   const results: { name: string; content: string }[] = [];
   for (const file of files) {
     try {
