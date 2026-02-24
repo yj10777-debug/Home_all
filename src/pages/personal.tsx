@@ -74,6 +74,23 @@ const SEX_OPTIONS = [
   { value: "female", label: "女性" },
 ];
 
+/** API の personal をフォーム用に正規化（数値・文字列混在対策） */
+function normalizePersonal(raw: unknown): Personal {
+  if (!raw || typeof raw !== "object") {
+    return { heightCm: null, weightKg: null, age: null, sex: null, activityLevel: null };
+  }
+  const o = raw as Record<string, unknown>;
+  const num = (v: unknown): number | null =>
+    typeof v === "number" && Number.isFinite(v) ? v : typeof v === "string" ? (Number(v) || null) : null;
+  return {
+    heightCm: num(o.heightCm),
+    weightKg: num(o.weightKg),
+    age: num(o.age),
+    sex: typeof o.sex === "string" ? o.sex : null,
+    activityLevel: typeof o.activityLevel === "string" ? o.activityLevel : null,
+  };
+}
+
 function bmiLabel(heightCm: number, weightKg: number): string {
   if (heightCm <= 0) return "";
   const h = heightCm / 100;
@@ -94,6 +111,8 @@ export default function PersonalPage() {
   });
   const [goals, setGoals] = useState<Goals>(DEFAULT_GOALS);
   const [loading, setLoading] = useState(true);
+  /** DB から設定を取得済みか。推奨ポップアップはこの後にのみ表示する */
+  const [configLoaded, setConfigLoaded] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
   const [recommendPopup, setRecommendPopup] = useState<{
     recommended: string;
@@ -102,17 +121,19 @@ export default function PersonalPage() {
   } | null>(null);
   const [recentStats, setRecentStats] = useState<{ workoutDays: number; avgSteps: number | null } | null>(null);
 
+  // 初回表示・再表示時に必ず DB から設定を取得して表示する
   useEffect(() => {
-    fetch("/api/config")
-      .then((r) => r.json())
-      .then((data) => {
-        const personalData = data?.personal ?? {
-          heightCm: null,
-          weightKg: null,
-          age: null,
-          sex: null,
-          activityLevel: null,
-        };
+    let cancelled = false;
+    fetch("/api/config", { cache: "no-store" })
+      .then((r) => {
+        if (!r.ok) return r.json().then((data) => ({ ok: false, data }));
+        return r.json().then((data) => ({ ok: true, data }));
+      })
+      .then(({ ok, data }) => {
+        if (cancelled) return;
+        setConfigLoaded(true);
+        if (!ok || data?.error) return;
+        const personalData = normalizePersonal(data?.personal);
         const goalsData = data?.goals ?? DEFAULT_GOALS;
         setPersonal(personalData);
         const computed = computeGoalsFromPersonal(personalData);
@@ -127,13 +148,21 @@ export default function PersonalPage() {
           setGoals(goalsData);
         }
       })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .catch(() => {
+        if (!cancelled) setConfigLoaded(true);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
   }, []);
 
+  // 推奨ポップアップは「設定読込済み」かつ「すでに活動レベルを登録済み」のときだけ表示（未登録時は出さない）
   useEffect(() => {
-    if (loading) return;
-    fetch("/api/days")
+    if (loading || !configLoaded) return;
+    const hasActivityLevel = personal.activityLevel != null && personal.activityLevel !== "";
+    if (!hasActivityLevel) return;
+    fetch("/api/days", { cache: "no-store" })
       .then((r) => r.json())
       .then((data) => {
         const days = data?.days as DayRow[] | undefined;
@@ -154,7 +183,7 @@ export default function PersonalPage() {
         });
       })
       .catch(() => setRecentStats(null));
-  }, [loading, personal.activityLevel]);
+  }, [loading, configLoaded, personal.activityLevel]);
 
   const handlePersonalChange = <K extends keyof Personal>(field: K, value: Personal[K]) => {
     setPersonal((prev) => ({ ...prev, [field]: value }));
@@ -184,7 +213,7 @@ export default function PersonalPage() {
     })
       .then((r) => r.json())
       .then((data) => {
-        if (data?.personal) setPersonal(data.personal);
+        if (data?.personal) setPersonal(normalizePersonal(data.personal));
         setSaved("活動レベルを更新しました。");
         setTimeout(() => setSaved(null), 3000);
       })
@@ -209,7 +238,7 @@ export default function PersonalPage() {
     })
       .then((r) => r.json())
       .then((data) => {
-        if (data?.personal) setPersonal(data.personal);
+        if (data?.personal) setPersonal(normalizePersonal(data.personal));
         if (data?.goals) setGoals(data.goals);
         setSaved("保存しました。");
         setTimeout(() => setSaved(null), 3000);

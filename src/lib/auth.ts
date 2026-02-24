@@ -1,5 +1,15 @@
 import type { NextApiRequest } from "next";
 import jwt from "jsonwebtoken";
+import { DEFAULT_USER_ID } from "./dbConfig";
+
+/** 設定取得用: 認証があれば sub、なければ "default" を返す（例外を出さない） */
+export function getUserIdForConfig(req: NextApiRequest): string {
+  try {
+    return getUserIdFromRequest(req);
+  } catch {
+    return DEFAULT_USER_ID;
+  }
+}
 
 export function getUserIdFromRequest(req: NextApiRequest): string {
   const auth = req.headers.authorization;

@@ -15,6 +15,15 @@ model User {
   meals     MealLog[]
 }
 
+/// ユーザーごとの目標・パーソナル設定（複数ユーザー対応）
+/// userId = 認証の sub または "default"（未ログイン時）
+model UserConfig {
+  userId    String   @id
+  goals     Json?    // { calories, protein, fat, carbs }
+  personal  Json?    // { heightCm, weightKg, age, sex?, activityLevel? }
+  updatedAt DateTime @updatedAt
+}
+
 model MealLog {
   id           String    @id @default(cuid())
   userId       String
@@ -57,10 +66,12 @@ model MealItem {
 }
 
 /// あすけん・Strong の日次データを統合して保存するテーブル
+/// ownerId: 将来の複数ユーザー分離用。null = default ユーザー。既存コードは変更なし。
 model DailyData {
   id        String   @id @default(cuid())
-  date      String   @unique  // YYYY-MM-DD
-  
+  date      String   @unique  // YYYY-MM-DD（複数ユーザー時は @@unique([ownerId, date]) に移行予定）
+  ownerId   String?  // 拡張用。未使用時は null
+
   /// あすけんの食事アイテム (JSON配列)
   askenItems     Json?  // [{ mealType, name, amount, calories }]
   /// あすけんの栄養素データ (JSON: { 朝食: { エネルギー: "500kcal", ... }, ... })
@@ -78,12 +89,15 @@ model DailyData {
   updatedAt DateTime @updatedAt
 
   @@index([date])
+  @@index([ownerId])
 }
 
 /// AI 評価結果を保存するテーブル
+/// ownerId: 将来の複数ユーザー分離用。null = default。既存コードは変更なし。
 model AiEvaluation {
   id        String   @id @default(cuid())
   date      String   // YYYY-MM-DD（評価対象日）
+  ownerId   String?  // 拡張用。未使用時は null
   type      String   // "daily" | "weekly"
   model     String   // 使用したモデル名
   prompt    String   // 送信したプロンプト
@@ -93,11 +107,14 @@ model AiEvaluation {
 
   @@index([date])
   @@index([type, date])
+  @@index([ownerId])
 }
 
 /// 同期ログ（最終同期時刻・結果を保持、常にid=1の1レコード）
+/// ownerId: 将来の複数ユーザー分離用。null = default。既存コードは変更なし。
 model SyncLog {
   id          Int      @id @default(1)
+  ownerId     String?  // 拡張用。未使用時は null
   timestamp   DateTime @default(now())
   askenCount  Int      @default(0) @map("asken_count")
   strongCount Int      @default(0) @map("strong_count")
@@ -105,10 +122,24 @@ model SyncLog {
   errors      String?  // JSON文字列
 }
 
-/// アプリ設定（目標・パーソナル情報、常にid=1の1レコード）
+/// ユーザーが利用するデータソース（あすけん・Strong・他アプリ）の登録用。
+/// 現状は未使用。将来の他アプリ連携・複数ユーザー対応で使う。
+model Integration {
+  id         String   @id @default(cuid())
+  userId     String
+  sourceType String   // "asken" | "strong" | "manual" | 将来 "myfitnesspal" など
+  config     Json?    // 認証情報は別途暗号化等を検討
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([userId, sourceType])
+  @@index([userId])
+}
+
+/// アプリ設定（目標・パーソナル）— 非推奨: ユーザー単位は UserConfig を使用
 model AppConfig {
   id          Int   @id @default(1)
-  goals       Json? // { calories, protein, fat, carbs }
-  personal    Json? // { heightCm, weightKg, age, sex?, activityLevel? }
+  goals       Json?
+  personal    Json?
   updatedAt   DateTime @updatedAt
 }

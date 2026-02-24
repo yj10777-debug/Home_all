@@ -1,6 +1,6 @@
 /**
- * アプリ設定（目標・パーソナル）のDB読み書き
- * 常に id=1 の AppConfig レコードを使用
+ * ユーザーごとの目標・パーソナル設定のDB読み書き
+ * userId = 認証の sub または "default"（未ログイン時）
  */
 
 import { prisma } from "./prisma";
@@ -47,43 +47,92 @@ function parseGoals(json: unknown): Goals | null {
   return { calories, protein, fat, carbs };
 }
 
+/** 数値または数値文字列を number | null に変換（DB/JSON の型違いに対応） */
+function toNumber(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string") {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
 function parsePersonal(json: unknown): Personal | null {
   if (!json || typeof json !== "object") return null;
   const o = json as Record<string, unknown>;
+  const heightCm = toNumber(o.heightCm);
+  const weightKg = toNumber(o.weightKg);
+  const age = toNumber(o.age);
+  if (heightCm === null && weightKg === null && age === null && !o.sex && !o.activityLevel) return null;
   return {
-    heightCm: typeof o.heightCm === "number" ? o.heightCm : null,
-    weightKg: typeof o.weightKg === "number" ? o.weightKg : null,
-    age: typeof o.age === "number" ? o.age : null,
+    heightCm,
+    weightKg,
+    age,
     sex: typeof o.sex === "string" ? o.sex : null,
     activityLevel: typeof o.activityLevel === "string" ? o.activityLevel : null,
   };
 }
 
-export async function getGoals(): Promise<Goals> {
-  const row = await prisma.appConfig.findUnique({ where: { id: 1 }, select: { goals: true } });
-  const parsed = row?.goals ? parseGoals(row.goals) : null;
-  return parsed ?? DEFAULT_GOALS;
+/** 未ログイン時・認証なし時につかうユーザーID */
+export const DEFAULT_USER_ID = "default";
+
+/**
+ * 指定ユーザーの目標を取得。未設定ならデフォルト値。
+ * userId が "default" で UserConfig に無い場合は従来の AppConfig を参照（移行用）
+ */
+export async function getGoals(userId: string = DEFAULT_USER_ID): Promise<Goals> {
+  const row = await prisma.userConfig.findUnique({ where: { userId }, select: { goals: true } });
+  if (row?.goals) {
+    const parsed = parseGoals(row.goals);
+    if (parsed) return parsed;
+  }
+  if (userId === DEFAULT_USER_ID) {
+    const legacy = await prisma.appConfig.findUnique({ where: { id: 1 }, select: { goals: true } });
+    const parsed = legacy?.goals ? parseGoals(legacy.goals) : null;
+    if (parsed) {
+      void setGoals(DEFAULT_USER_ID, parsed).catch(() => {}); // 1回だけ UserConfig へ移行
+      return parsed;
+    }
+  }
+  return DEFAULT_GOALS;
 }
 
-export async function getPersonal(): Promise<Personal> {
-  const row = await prisma.appConfig.findUnique({ where: { id: 1 }, select: { personal: true } });
-  const parsed = row?.personal ? parsePersonal(row.personal) : null;
-  return parsed ?? { ...DEFAULT_PERSONAL };
+/**
+ * 指定ユーザーのパーソナル設定を取得。
+ * userId が "default" で UserConfig に無い場合は従来の AppConfig を参照（移行用）
+ */
+export async function getPersonal(userId: string = DEFAULT_USER_ID): Promise<Personal> {
+  const row = await prisma.userConfig.findUnique({ where: { userId }, select: { personal: true } });
+  if (row?.personal) {
+    const parsed = parsePersonal(row.personal);
+    if (parsed) return parsed;
+  }
+  if (userId === DEFAULT_USER_ID) {
+    const legacy = await prisma.appConfig.findUnique({ where: { id: 1 }, select: { personal: true } });
+    const parsed = legacy?.personal ? parsePersonal(legacy.personal) : null;
+    if (parsed) {
+      void setPersonal(DEFAULT_USER_ID, parsed).catch(() => {}); // 1回だけ UserConfig へ移行
+      return parsed;
+    }
+  }
+  return { ...DEFAULT_PERSONAL };
 }
 
-export async function setGoals(goals: Goals): Promise<void> {
-  await prisma.appConfig.upsert({
-    where: { id: 1 },
+/** 指定ユーザーの目標を保存 */
+export async function setGoals(userId: string, goals: Goals): Promise<void> {
+  await prisma.userConfig.upsert({
+    where: { userId },
     update: { goals: goals as object },
-    create: { id: 1, goals: goals as object },
+    create: { userId, goals: goals as object },
   });
 }
 
-export async function setPersonal(personal: Personal): Promise<void> {
-  await prisma.appConfig.upsert({
-    where: { id: 1 },
+/** 指定ユーザーのパーソナル設定を保存 */
+export async function setPersonal(userId: string, personal: Personal): Promise<void> {
+  await prisma.userConfig.upsert({
+    where: { userId },
     update: { personal: personal as object },
-    create: { id: 1, personal: personal as object },
+    create: { userId, personal: personal as object },
   });
 }
 

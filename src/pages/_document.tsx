@@ -8,6 +8,7 @@ export default function Document() {
     return (
         <Html lang="ja" className="dark" translate="no">
             <Head>
+                <meta name="google" content="notranslate" />
                 <link rel="preconnect" href="https://fonts.googleapis.com" />
                 <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
                 <link

@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../lib/prisma";
 import { calculateDailyScore } from "../../../lib/scoring";
 import { getGoals } from "../../../lib/dbConfig";
+import { getUserIdForConfig } from "../../../lib/auth";
 import type { DayData, AskenItem, AskenNutrients, StrongData } from "../../../lib/gemini";
 
 /**
@@ -15,9 +16,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
+    const userId = getUserIdForConfig(req);
     let goals;
     try {
-      goals = await getGoals();
+      goals = await getGoals(userId);
     } catch (e) {
       console.warn("GET /api/days getGoals failed, using defaults:", e);
       goals = { calories: 2267, protein: 150, fat: 54, carbs: 293 };
