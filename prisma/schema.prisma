@@ -2,9 +2,9 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// Prisma 7: url は prisma.config.ts で指定（スキーマの url は非対応）
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model User {
