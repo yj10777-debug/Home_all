@@ -1,15 +1,23 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { format, subDays } from "date-fns";
 import { syncData } from "../../../lib/syncData";
 import { prisma } from "../../../lib/prisma";
+import { getEffectiveToday } from "../../../lib/dateUtils";
 
 /** スクレイピングは時間がかかるためタイムアウトを延長 */
 export const config = {
   maxDuration: 300, // 5分
 };
 
+/** 過去分同期の日数（朝5時cron用） */
+const PAST_SYNC_DAYS = 30;
+/** この日数より前の日は「既に取得済みならスキップ」 */
+const SKIP_EXISTING_PAST_DAYS = 3;
+
 /**
  * POST /api/sync/cron
  * cron スケジューラーから呼び出される内部同期エンドポイント
+ * body.pastOnly === true のときは過去30日間を対象に、3日以上前は未取得のみ取得
  * CRON_SECRET が設定されている場合は x-cron-secret ヘッダーで認証
  */
 export default async function handler(
@@ -31,7 +39,14 @@ export default async function handler(
   }
 
   try {
-    const result = await syncData();
+    const body = (req.body ?? {}) as { pastOnly?: boolean };
+    const result = body.pastOnly
+      ? await syncData({
+          from: format(subDays(getEffectiveToday(), PAST_SYNC_DAYS - 1), "yyyy-MM-dd"),
+          to: format(getEffectiveToday(), "yyyy-MM-dd"),
+          skipExistingPastDays: SKIP_EXISTING_PAST_DAYS,
+        })
+      : await syncData();
 
     // 最終同期時刻を記録
     try {

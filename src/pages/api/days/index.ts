@@ -15,7 +15,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   try {
-    const goals = await getGoals();
+    let goals;
+    try {
+      goals = await getGoals();
+    } catch (e) {
+      console.warn("GET /api/days getGoals failed, using defaults:", e);
+      goals = { calories: 2267, protein: 150, fat: 54, carbs: 293 };
+    }
+
     const records = await prisma.dailyData.findMany({
       select: {
         date: true,
@@ -28,14 +35,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       orderBy: { date: "desc" },
     });
 
-    // 評価済みの日付を取得
-    const evaluations = await prisma.aiEvaluation.findMany({
-      select: { date: true },
-      distinct: ['date'],
-    });
-    const evaluatedDates = new Set(evaluations.map(e => e.date));
+    let evaluatedDates = new Set<string>();
+    try {
+      const evaluations = await prisma.aiEvaluation.findMany({
+        select: { date: true },
+        distinct: ["date"],
+      });
+      evaluatedDates = new Set(evaluations.map((e) => e.date));
+    } catch (e) {
+      console.warn("GET /api/days aiEvaluation findMany failed:", e);
+    }
 
-    // 各日のサマリーを生成
     type DaySummary = {
       date: string;
       calories: number;
@@ -53,46 +63,46 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     };
 
     const days: DaySummary[] = records.map((r) => {
-      // カロリー・PFC計算
       let calories = 0;
       let p = 0, f = 0, c = 0;
 
       const nutrientMealTypes = new Set<string>();
       const nutrients = r.askenNutrients as AskenNutrients | null;
 
-      if (nutrients) {
+      if (nutrients && typeof nutrients === "object") {
         for (const [mealType, meal] of Object.entries(nutrients)) {
-          if (!meal) continue;
+          if (!meal || typeof meal !== "object") continue;
           nutrientMealTypes.add(mealType);
-          if (meal["エネルギー"]) calories += parseNumeric(meal["エネルギー"]);
-          if (meal["たんぱく質"]) p += parseNumeric(meal["たんぱく質"]);
-          if (meal["脂質"]) f += parseNumeric(meal["脂質"]);
-          if (meal["炭水化物"]) c += parseNumeric(meal["炭水化物"]);
+          if (meal["エネルギー"]) calories += parseNumeric(String(meal["エネルギー"]));
+          if (meal["たんぱく質"]) p += parseNumeric(String(meal["たんぱく質"]));
+          if (meal["脂質"]) f += parseNumeric(String(meal["脂質"]));
+          if (meal["炭水化物"]) c += parseNumeric(String(meal["炭水化物"]));
         }
       }
 
       const items = r.askenItems as AskenItem[] | null;
-      if (items) {
+      if (Array.isArray(items)) {
         for (const item of items) {
-          if (!nutrientMealTypes.has(item.mealType)) {
+          if (item && typeof item.calories === "number" && !nutrientMealTypes.has(item.mealType)) {
             calories += item.calories;
-            // itemsにはPFC情報がないため加算できない（カロリーのみ）
           }
         }
       }
 
-      // スコア計算のために DayData 型を作成
-      const dayData: DayData = {
-        date: r.date,
-        askenItems: items,
-        askenNutrients: nutrients,
-        strongData: r.strongData as StrongData | null,
-        steps: r.steps ?? null,
-        exerciseCalories: r.exerciseCalories ?? null,
-      };
-
-      const scoreResult = calculateDailyScore(dayData, undefined, goals);
-      const hasEvaluation = evaluatedDates.has(r.date);
+      let score = 0;
+      try {
+        const dayData: DayData = {
+          date: r.date,
+          askenItems: items ?? null,
+          askenNutrients: nutrients ?? null,
+          strongData: (r.strongData as StrongData) ?? null,
+          steps: r.steps ?? null,
+          exerciseCalories: r.exerciseCalories ?? null,
+        };
+        score = calculateDailyScore(dayData, undefined, goals).total;
+      } catch (e) {
+        console.warn(`GET /api/days score failed for ${r.date}:`, e);
+      }
 
       return {
         date: r.date,
@@ -101,13 +111,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         steps: r.steps,
         exerciseCalories: r.exerciseCalories,
         hasStrong: !!r.strongData,
-        hasEvaluation,
-        score: scoreResult.total,
+        hasEvaluation: evaluatedDates.has(r.date),
+        score,
       };
     });
 
     res.setHeader("Cache-Control", "no-store, max-age=0");
-    return res.status(200).json({ dates: days.map(d => d.date), days });
+    return res.status(200).json({ dates: days.map((d) => d.date), days });
   } catch (err) {
     console.error("GET /api/days error:", err);
     return res.status(500).json({ error: "Internal Server Error" });

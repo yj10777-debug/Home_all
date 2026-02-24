@@ -177,7 +177,7 @@ export default function Home() {
             <header className="bg-[var(--bg-page)] border-b border-[var(--border-card)] sticky top-0 z-10 safe-area-top">
                 <div className="px-4 md:px-6 lg:px-8 min-h-[3.5rem] py-3 flex items-center">
                     <h1 className="font-display text-lg font-bold text-[var(--text-primary)]">今日のサマリー</h1>
-                    <span className="ml-3 text-[var(--text-tertiary)] text-sm">{getEffectiveTodayStr()}</span>
+                    <span className="ml-3 text-[var(--text-tertiary)] text-sm" suppressHydrationWarning>{mounted ? getEffectiveTodayStr() : "\u00A0"}</span>
                 </div>
             </header>
 
@@ -235,16 +235,20 @@ export default function Home() {
 
                         <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border-card)]">
                             <p className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-1">歩数</p>
-                            {todaySteps != null ? (
-                                <>
-                                    <p className="text-xl font-black text-[var(--text-primary)]">{todaySteps.toLocaleString()} <span className="text-sm font-medium text-[var(--text-tertiary)]">歩</span></p>
-                                    {todayExerciseCal != null && todayExerciseCal > 0 && (
-                                        <p className="text-xs text-[var(--primary)] font-medium mt-0.5">消費 {todayExerciseCal} kcal</p>
-                                    )}
-                                </>
-                            ) : (
-                                <p className="text-[var(--text-tertiary)] text-sm">—</p>
-                            )}
+                            <div>
+                                {todaySteps != null ? (
+                                    <div>
+                                        <p className="text-xl font-black text-[var(--text-primary)]">{todaySteps.toLocaleString()} <span className="text-sm font-medium text-[var(--text-tertiary)]">歩</span></p>
+                                        {todayExerciseCal != null && todayExerciseCal > 0 ? (
+                                            <p className="text-xs text-[var(--primary)] font-medium mt-0.5">消費 {todayExerciseCal} kcal</p>
+                                        ) : null}
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <p className="text-[var(--text-tertiary)] text-sm">—</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border-card)] flex flex-col">
@@ -254,8 +258,14 @@ export default function Home() {
                                 disabled={syncing}
                                 className="min-h-[40px] py-2 bg-[var(--primary)] text-[var(--btn-primary-text)] text-sm font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2 hover:bg-[var(--primary-hover)]"
                             >
-                                {syncing ? <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> : null}
-                                {syncing ? "取得中..." : "今すぐ取得"}
+                                <span className="inline-flex items-center justify-center gap-2 w-full">
+                                    {syncing ? (
+                                        <svg className="w-4 h-4 animate-spin flex-shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                                    ) : (
+                                        <span className="w-4 h-4 flex-shrink-0 block" aria-hidden />
+                                    )}
+                                    <span>{syncing ? "取得中..." : "今すぐ取得"}</span>
+                                </span>
                             </button>
                             {syncStatus?.lastSync && (
                                 <p className="text-[10px] text-[var(--text-tertiary)] mt-2" suppressHydrationWarning>最終: {formatRelativeTime(syncStatus.lastSync.timestamp)}</p>
@@ -287,8 +297,14 @@ export default function Home() {
                                 disabled={evaluating}
                                 className="min-h-[44px] px-5 py-2.5 bg-[var(--primary)] text-[var(--btn-primary-text)] text-sm font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2 hover:bg-[var(--primary-hover)]"
                             >
-                                {evaluating ? <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> : null}
-                                {evaluating ? "評価中..." : "今日を評価"}
+                                <span className="inline-flex items-center justify-center gap-2">
+                                    {evaluating ? (
+                                        <svg className="w-4 h-4 animate-spin flex-shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                                    ) : (
+                                        <span className="w-4 h-4 flex-shrink-0 block" aria-hidden />
+                                    )}
+                                    <span>{evaluating ? "評価中..." : "今日を評価"}</span>
+                                </span>
                             </button>
                         </div>
                         {evalError && (

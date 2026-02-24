@@ -16,12 +16,23 @@ const GOAL_CALORIES = 2267;
 export default function DaysIndex() {
   const [days, setDays] = useState<DaySummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/days")
-      .then((r) => r.json())
-      .then((data) => setDays(data.days || []))
-      .catch(() => setDays([]))
+    setFetchError(null);
+    fetch("/api/days", { cache: "no-store" })
+      .then((r) => {
+        if (!r.ok) throw new Error(`API ${r.status}`);
+        return r.json();
+      })
+      .then((data) => {
+        if (data.error) throw new Error(data.error);
+        setDays(Array.isArray(data.days) ? data.days : []);
+      })
+      .catch((e) => {
+        setDays([]);
+        setFetchError(e instanceof Error ? e.message : "取得に失敗しました");
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -72,6 +83,11 @@ export default function DaysIndex() {
         <h2 className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-4 px-1">
           履歴一覧
         </h2>
+        {fetchError && (
+          <div className="mb-4 p-3 rounded-lg bg-amber-900/30 border border-amber-600/50 text-amber-200 text-sm" role="alert">
+            {fetchError}
+          </div>
+        )}
         {loading ? (
           <ul className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 list-none p-0 m-0">
             {[...Array(6)].map((_, i) => (

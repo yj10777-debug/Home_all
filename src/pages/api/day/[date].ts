@@ -25,7 +25,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const daily = await prisma.dailyData.findUnique({ where: { date } });
     if (!daily) {
-      return res.status(404).json({ error: "Not found" });
+      // 該当日の行がなくても 200 でゼロを返す（ダッシュボードで「未取得」表示のため）
+      res.setHeader("Cache-Control", "no-store, max-age=0");
+      return res.status(200).json({
+        date,
+        calories: 0,
+        pfc: { protein: 0, fat: 0, carbs: 0 },
+        steps: null,
+        exerciseCalories: null,
+      });
     }
 
     const nutrients = daily.askenNutrients as AskenNutrients | null;

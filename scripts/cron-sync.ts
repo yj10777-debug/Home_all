@@ -10,6 +10,7 @@
 import cron from "node-cron";
 
 const SYNC_SCHEDULE = process.env.CRON_SCHEDULE || "0 9,11,13,16,19,21,22,23 * * *";
+const PAST_SYNC_SCHEDULE = "0 5 * * *"; // 毎日朝5時（JST）に過去分を同期（未取得の日のみ）
 const AI_EVAL_SCHEDULE = "0 5 * * *"; // 毎日朝5時（JST）に前日のAI評価を実行
 const SECRET = process.env.CRON_SECRET || "";
 const PORT = process.env.PORT || "3000";
@@ -23,7 +24,7 @@ function getHeaders(): Record<string, string> {
   };
 }
 
-/** データ同期APIを呼び出す */
+/** データ同期APIを呼び出す（前日〜当日の2日分） */
 async function triggerSync() {
   const now = new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
   console.log(`[cron-sync] ${now} 同期を開始...`);
@@ -48,6 +49,34 @@ async function triggerSync() {
     }
   } catch (e) {
     console.error(`[cron-sync] 通信失敗:`, e);
+  }
+}
+
+/** 過去分同期（朝5時用・過去30日で未取得の日のみ取得） */
+async function triggerPastSync() {
+  const now = new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
+  console.log(`[cron-past] ${now} 過去分同期を開始...`);
+
+  try {
+    const res = await fetch(`${BASE_URL}/api/sync/cron`, {
+      method: "POST",
+      headers: getHeaders(),
+      body: JSON.stringify({ pastOnly: true }),
+    });
+
+    const data = await res.json();
+    if (res.ok && data.success) {
+      console.log(
+        `[cron-past] 完了 — あすけん: ${data.askenCount}日, Strong: ${data.strongCount}日, 計: ${data.dayCount}件`
+      );
+      if (data.errors?.length > 0) {
+        console.log(`[cron-past] 警告: ${data.errors.join(" / ")}`);
+      }
+    } else {
+      console.error(`[cron-past] エラー:`, data.error || data);
+    }
+  } catch (e) {
+    console.error(`[cron-past] 通信失敗:`, e);
   }
 }
 
@@ -97,12 +126,18 @@ if (!cron.validate(SYNC_SCHEDULE)) {
 }
 
 console.log(`[cron] スケジューラー起動`);
-console.log(`[cron]   データ同期: ${SYNC_SCHEDULE}`);
+console.log(`[cron]   データ同期(2日): ${SYNC_SCHEDULE}`);
+console.log(`[cron]   過去分同期(未取得のみ): ${PAST_SYNC_SCHEDULE}`);
 console.log(`[cron]   AI評価: ${AI_EVAL_SCHEDULE} (前日分)`);
 console.log(`[cron]   タイムゾーン: Asia/Tokyo`);
 
-// データ同期スケジュール
+// データ同期スケジュール（前日〜当日の2日分）
 cron.schedule(SYNC_SCHEDULE, triggerSync, {
+  timezone: "Asia/Tokyo",
+});
+
+// 過去分同期（毎日朝5時・過去30日で3日以上前は未取得のみ取得）
+cron.schedule(PAST_SYNC_SCHEDULE, triggerPastSync, {
   timezone: "Asia/Tokyo",
 });
 

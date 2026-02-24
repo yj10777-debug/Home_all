@@ -5,7 +5,7 @@ import { format, subDays } from "date-fns";
 import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
 import { fetchStrongFilesFromDrive } from "./googleDrive";
-import { getEffectiveToday } from "./dateUtils";
+import { getEffectiveToday, getEffectiveTodayStr } from "./dateUtils";
 
 const SECRETS_DIR = path.join(process.cwd(), "secrets");
 const DEFAULT_STRONG_PATH = process.env.STRONG_DATA_PATH || "G:\\マイドライブ\\30_Home\\00_Training";
@@ -21,7 +21,7 @@ type StrongDayData = { workouts: StrongWorkout[]; totals: { workouts: number; se
 
 /**
  * 日付範囲を生成する
- * @param from 開始日 (YYYY-MM-DD)。省略時は前日〜当日の2日分（入力忘れ反映用）
+ * @param from 開始日 (YYYY-MM-DD)。省略時は前日〜当日の2日分（今すぐ取得用）
  * @param to 終了日 (YYYY-MM-DD)。省略時は today
  */
 function getTargetDates(from?: string, to?: string): string[] {
@@ -214,12 +214,20 @@ export function parseStrongFiles(
   return { data: buildStrongData(allParsed), errors };
 }
 
+/** 日付 d が「今日」から何日前か（正の数＝過去） */
+function daysAgo(dateStr: string, todayStr: string): number {
+  const d = new Date(dateStr + "T00:00:00").getTime();
+  const t = new Date(todayStr + "T00:00:00").getTime();
+  return Math.floor((t - d) / 86400000);
+}
+
 /**
  * あすけん + Strong データを取得し、DB に upsert する
- * @param options.from 開始日 (YYYY-MM-DD)。省略時は today-3
+ * @param options.from 開始日 (YYYY-MM-DD)。省略時は前日〜当日の2日分
  * @param options.to 終了日 (YYYY-MM-DD)。省略時は today
+ * @param options.skipExistingPastDays この日数より前の日付は、既にあすけんデータがあれば取得をスキップ（過去分cron用）
  */
-export async function syncData(options?: { from?: string; to?: string }): Promise<{
+export async function syncData(options?: { from?: string; to?: string; skipExistingPastDays?: number }): Promise<{
   askenCount: number;
   strongCount: number;
   dayCount: number;
@@ -228,6 +236,8 @@ export async function syncData(options?: { from?: string; to?: string }): Promis
   const errors: string[] = [];
   const targetDates = getTargetDates(options?.from, options?.to);
   const dateRange = new Set(targetDates);
+  const todayStr = getEffectiveTodayStr();
+  const skipThreshold = options?.skipExistingPastDays ?? 0;
 
   const upsertAskenDay = async (date: string, data: AskenDayResult) => {
     const payload = {
@@ -245,6 +255,19 @@ export async function syncData(options?: { from?: string; to?: string }): Promis
 
   let askenCount = 0;
   for (const d of targetDates) {
+    // 過去N日以上前で「既に取得済み」の日はスキップ（未取得の場合のみ取得）
+    if (skipThreshold > 0 && daysAgo(d, todayStr) >= skipThreshold) {
+      const existing = await prisma.dailyData.findUnique({
+        where: { date: d },
+        select: { askenItems: true, askenNutrients: true },
+      });
+      const hasAsken = existing && (
+        (Array.isArray(existing.askenItems) && existing.askenItems.length > 0) ||
+        (existing.askenNutrients && typeof existing.askenNutrients === "object" && Object.keys(existing.askenNutrients as object).length > 0)
+      );
+      if (hasAsken) continue;
+    }
+
     const result = await runAskenForDate(d);
     if (result.ok && result.data) {
       try {
@@ -322,6 +345,19 @@ export async function syncData(options?: { from?: string; to?: string }): Promis
       strongCount += 1;
     } catch (e) {
       errors.push(`DB保存 Strong ${dateStr}: ${String(e)}`);
+    }
+  }
+
+  // 対象日付の行が必ず存在するようにする（あすけん未取得でもダッシュボードで「今日」が表示される）
+  for (const d of targetDates) {
+    try {
+      await prisma.dailyData.upsert({
+        where: { date: d },
+        create: { date: d },
+        update: {},
+      });
+    } catch (e) {
+      errors.push(`DailyData確保 ${d}: ${String(e)}`);
     }
   }
 
