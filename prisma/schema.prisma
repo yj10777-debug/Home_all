@@ -18,10 +18,11 @@ model User {
 /// ユーザーごとの目標・パーソナル設定（複数ユーザー対応）
 /// userId = 認証の sub または "default"（未ログイン時）
 model UserConfig {
-  userId    String   @id
-  goals     Json?    // { calories, protein, fat, carbs }
-  personal  Json?    // { heightCm, weightKg, age, sex?, activityLevel? }
-  updatedAt DateTime @updatedAt
+  userId       String   @id
+  goals        Json?    // { calories, protein, fat, carbs }
+  personal     Json?    // { heightCm, weightKg, age, sex?, activityLevel? }
+  systemPrompt String?  // AI評価用システムプロンプト（未設定時はデフォルトを使用）
+  updatedAt    DateTime @updatedAt
 }
 
 model MealLog {

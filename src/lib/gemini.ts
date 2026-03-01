@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { getGoals } from "./dbConfig";
+import { getWorkLocation } from "./googleCalendar";
 
 /** あすけんの食事アイテム */
 export type AskenItem = {
@@ -197,7 +198,11 @@ function formatWorkouts(strong?: StrongData | null): string {
  * @throws データが見つからない場合
  */
 export async function generateDailyPrompt(dateStr: string): Promise<string> {
-  const [dayData, goals] = await Promise.all([loadDayData(dateStr), getGoals()]);
+  const [dayData, goals, workLocation] = await Promise.all([
+    loadDayData(dateStr),
+    getGoals(),
+    getWorkLocation(dateStr),
+  ]);
   if (!dayData) {
     throw new Error(`${dateStr} のデータが見つかりません。先にデータを同期してください。`);
   }
@@ -210,6 +215,7 @@ export async function generateDailyPrompt(dateStr: string): Promise<string> {
   const hasWorkout = !!dayData.strongData && (dayData.strongData.workouts?.length ?? 0) > 0;
 
   const fatRatio = totalCalories > 0 ? (pfc.fat * 9 / totalCalories) * 100 : 0;
+  const workLocationLabel = workLocation ?? "データなし";
   return `以下のデータをもとに、システムプロンプトの「筋トレ・食事 評価スコアモデル」に従い、総評（先に）・総合スコア・内訳の順で出力してください。
 
 ## 目標・参照
@@ -217,6 +223,9 @@ export async function generateDailyPrompt(dateStr: string): Promise<string> {
 - 目標PFC: P${goals.protein}g / F${goals.fat}g / C${goals.carbs}g
 
 ## 今日の入力データ (${dateStr})
+
+### 勤務形態
+- 勤務形態: ${workLocationLabel}（出社＝通勤・外出あり、在宅＝平日在宅、休日＝土日。在宅日は歩数少なめ・活動量低めでも許容してよい）
 
 ### 摂取
 - 総摂取カロリー: ${totalCalories} kcal

@@ -136,4 +136,31 @@ export async function setPersonal(userId: string, personal: Personal): Promise<v
   });
 }
 
+/**
+ * 指定ユーザーの AI 評価用システムプロンプトを取得
+ * @returns 保存済みのプロンプト文字列。未設定・空の場合は null
+ */
+export async function getSystemPrompt(userId: string = DEFAULT_USER_ID): Promise<string | null> {
+  const row = await prisma.userConfig.findUnique({
+    where: { userId },
+    select: { systemPrompt: true },
+  });
+  const v = row?.systemPrompt;
+  if (v == null || typeof v !== "string" || v.trim() === "") return null;
+  return v.trim();
+}
+
+/**
+ * 指定ユーザーの AI 評価用システムプロンプトを保存
+ * @param value 空文字の場合は未設定扱い（null で上書き）
+ */
+export async function setSystemPrompt(userId: string, value: string | null): Promise<void> {
+  const trimmed = value != null && value.trim() !== "" ? value.trim() : null;
+  await prisma.userConfig.upsert({
+    where: { userId },
+    update: { systemPrompt: trimmed },
+    create: { userId, systemPrompt: trimmed },
+  });
+}
+
 export { DEFAULT_GOALS, DEFAULT_PERSONAL };

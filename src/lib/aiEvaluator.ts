@@ -5,6 +5,7 @@
 import { prisma } from "./prisma";
 import { callGemini, getGeminiModelName } from "./geminiClient";
 import { generateDailyPrompt, generateWeeklyPrompt, getGemSystemPrompt } from "./gemini";
+import { getSystemPrompt as getStoredSystemPrompt } from "./dbConfig";
 
 /** AI 評価の実行結果 */
 export type EvaluationResult = {
@@ -21,7 +22,7 @@ export type EvaluationResult = {
  * 日次AI評価を実行し、DBに保存して返す
  * @param dateStr 対象日付 (YYYY-MM-DD)
  * @param trigger 実行トリガー ("manual" | "cron")
- * @param systemPromptOverride 未指定時は getGemSystemPrompt() を使用
+ * @param systemPromptOverride 未指定時は DB 保存分を使用、未保存なら getGemSystemPrompt() を使用（cron とボタンで同一プロンプト）
  */
 export async function runDailyEvaluation(
   dateStr: string,
@@ -29,7 +30,10 @@ export async function runDailyEvaluation(
   systemPromptOverride?: string
 ): Promise<EvaluationResult> {
   const prompt = await generateDailyPrompt(dateStr);
-  const systemPrompt = (systemPromptOverride && systemPromptOverride.trim()) ? systemPromptOverride.trim() : getGemSystemPrompt();
+  const systemPrompt =
+    (systemPromptOverride && systemPromptOverride.trim())
+      ? systemPromptOverride.trim()
+      : ((await getStoredSystemPrompt()) ?? getGemSystemPrompt());
   const modelName = getGeminiModelName();
 
   // Gemini API に送信
@@ -62,7 +66,7 @@ export async function runDailyEvaluation(
  * 週次AI評価を実行し、DBに保存して返す
  * @param sundayStr 週の開始日（日曜） (YYYY-MM-DD)
  * @param trigger 実行トリガー ("manual" | "cron")
- * @param systemPromptOverride 未指定時は getGemSystemPrompt() を使用
+ * @param systemPromptOverride 未指定時は DB 保存分を使用、未保存なら getGemSystemPrompt() を使用
  */
 export async function runWeeklyEvaluation(
   sundayStr: string,
@@ -70,7 +74,10 @@ export async function runWeeklyEvaluation(
   systemPromptOverride?: string
 ): Promise<EvaluationResult> {
   const prompt = await generateWeeklyPrompt(sundayStr);
-  const systemPrompt = (systemPromptOverride && systemPromptOverride.trim()) ? systemPromptOverride.trim() : getGemSystemPrompt();
+  const systemPrompt =
+    (systemPromptOverride && systemPromptOverride.trim())
+      ? systemPromptOverride.trim()
+      : ((await getStoredSystemPrompt()) ?? getGemSystemPrompt());
   const modelName = getGeminiModelName();
 
   const response = await callGemini(prompt, systemPrompt);

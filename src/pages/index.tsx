@@ -16,8 +16,6 @@ const PFC_TARGETS: PfcTarget[] = [
     { key: "carbs", label: "C", name: "炭水化物", color: "#3B82F6", bgColor: "bg-blue-500" },
 ];
 
-import { getStoredSystemPrompt } from "../lib/aiPromptStorage";
-
 export default function Home() {
     const [todayCalories, setTodayCalories] = useState(0);
     const [todayPfc, setTodayPfc] = useState<PfcData>({ protein: 0, fat: 0, carbs: 0 });
@@ -127,13 +125,10 @@ export default function Home() {
         setEvaluating(true);
         setEvalError(null);
         try {
-            const systemPrompt = getStoredSystemPrompt();
-            const body: { type: "daily"; trigger: "manual"; systemPrompt?: string } = { type: "daily", trigger: "manual" };
-            if (systemPrompt) body.systemPrompt = systemPrompt;
             const res = await fetch("/api/ai/evaluate", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(body),
+                body: JSON.stringify({ type: "daily", trigger: "manual" }),
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "Evaluation failed");

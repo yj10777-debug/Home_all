@@ -29,7 +29,7 @@ if (fs.existsSync(envPath)) {
 const CLIENT_ID = process.env.GOOGLE_CLIENT_ID ?? "";
 const CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET ?? "";
 const REDIRECT_URI = "http://localhost:3456/callback";
-const SCOPES = "https://www.googleapis.com/auth/drive.readonly";
+const SCOPES = "https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/calendar.events.readonly";
 
 if (!CLIENT_ID || !CLIENT_SECRET) {
   console.error("GOOGLE_CLIENT_ID と GOOGLE_CLIENT_SECRET を .env.local に設定してください。");

@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
 import Head from "next/head";
-import { AI_PROMPT_STORAGE_KEY } from "../lib/aiPromptStorage";
 import { getStoredTheme, setStoredTheme, type ThemeId } from "../lib/themeStorage";
 
 const THEME_OPTIONS: { id: ThemeId; label: string; description: string }[] = [
@@ -25,16 +24,11 @@ export default function SettingsPage() {
 
   useEffect(() => {
     setPromptLoading(true);
-    const saved = typeof window !== "undefined" ? window.localStorage.getItem(AI_PROMPT_STORAGE_KEY) : null;
-    if (saved != null && saved !== "") {
-      setPromptDraft(saved);
-      setPromptLoading(false);
-      return;
-    }
     fetch("/api/ai/gem-prompt")
       .then((r) => r.json())
       .then((data) => {
         if (data?.systemPrompt) setPromptDraft(data.systemPrompt);
+        else setPromptDraft("");
       })
       .catch(() => {})
       .finally(() => setPromptLoading(false));
@@ -42,12 +36,24 @@ export default function SettingsPage() {
 
   const handleSave = () => {
     const v = promptDraft.trim();
-    if (typeof window !== "undefined") {
-      if (v !== "") window.localStorage.setItem(AI_PROMPT_STORAGE_KEY, v);
-      else window.localStorage.removeItem(AI_PROMPT_STORAGE_KEY);
-    }
-    setSavedMessage("保存しました。次回の「今日を評価」から反映されます。");
-    setTimeout(() => setSavedMessage(null), 4000);
+    setSavedMessage("保存中...");
+    fetch("/api/settings/system-prompt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ systemPrompt: v !== "" ? v : null }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.success) {
+          setSavedMessage("保存しました。手動評価・自動評価（cron）の両方に反映されます。");
+        } else {
+          setSavedMessage(data?.error || "保存に失敗しました");
+        }
+      })
+      .catch(() => setSavedMessage("保存に失敗しました"))
+      .finally(() => {
+        setTimeout(() => setSavedMessage(null), 4000);
+      });
   };
 
   const handleResetDefault = () => {
