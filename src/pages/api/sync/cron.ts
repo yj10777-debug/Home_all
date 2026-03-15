@@ -1,8 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { format, subDays } from "date-fns";
 import { syncData } from "../../../lib/syncData";
 import { prisma } from "../../../lib/prisma";
-import { getEffectiveToday } from "../../../lib/dateUtils";
+import { getEffectiveToday, formatDateJst } from "../../../lib/dateUtils";
 
 /** スクレイピングは時間がかかるためタイムアウトを延長 */
 export const config = {
@@ -42,8 +41,8 @@ export default async function handler(
     const body = (req.body ?? {}) as { pastOnly?: boolean };
     const result = body.pastOnly
       ? await syncData({
-          from: format(subDays(getEffectiveToday(), PAST_SYNC_DAYS - 1), "yyyy-MM-dd"),
-          to: format(getEffectiveToday(), "yyyy-MM-dd"),
+          from: formatDateJst(new Date(getEffectiveToday().getTime() - (PAST_SYNC_DAYS - 1) * 86400000)),
+          to: formatDateJst(getEffectiveToday()),
           skipExistingPastDays: SKIP_EXISTING_PAST_DAYS,
         })
       : await syncData();

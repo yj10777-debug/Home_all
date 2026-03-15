@@ -1,7 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next';
 import { PrismaClient } from '@prisma/client';
-import { subDays, startOfDay, endOfDay, format } from 'date-fns';
-import { getEffectiveToday } from '../../../lib/dateUtils';
+import { getEffectiveToday, formatDateJst } from '../../../lib/dateUtils';
 
 const prisma = new PrismaClient();
 
@@ -12,10 +11,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     try {
         const today = getEffectiveToday();
-        const sevenDaysAgo = subDays(today, 6); // 今日を含むため6日前まで
+        const sevenDaysAgo = new Date(today.getTime() - 6 * 86400000);
 
-        const startDate = startOfDay(sevenDaysAgo);
-        const endDate = endOfDay(today);
+        const startDate = new Date(sevenDaysAgo);
+        startDate.setUTCHours(0, 0, 0, 0);
+        const endDate = new Date(today);
+        endDate.setUTCHours(23, 59, 59, 999);
 
         // Fetch logs
         const logs = await prisma.mealLog.findMany({
@@ -35,13 +36,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
         // Initialize last 7 days with 0
         for (let i = 0; i <= 6; i++) {
-            const date = subDays(today, i);
-            const dateStr = format(date, 'yyyy-MM-dd');
+            const date = new Date(today.getTime() - i * 86400000);
+            const dateStr = formatDateJst(date);
             dailyStats.set(dateStr, 0);
         }
 
         logs.forEach(log => {
-            const dateStr = format(new Date(log.loggedAt), 'yyyy-MM-dd');
+            const dateStr = formatDateJst(new Date(log.loggedAt));
 
             let calories = 0;
             if (log.totalCal !== null && log.totalCal !== undefined) {

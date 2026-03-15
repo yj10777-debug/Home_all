@@ -3,10 +3,9 @@
  * データ取得は sources/asken と sources/strong に委譲。既存の API 互換のため parseTxtContent / buildStrongData / parseStrongFiles は re-export。
  */
 
-import { format, subDays } from "date-fns";
 import { Prisma } from "@prisma/client";
 import { prisma } from "./prisma";
-import { getEffectiveToday, getEffectiveTodayStr } from "./dateUtils";
+import { getEffectiveToday, getEffectiveTodayStr, formatDateJst } from "./dateUtils";
 import { fetchNutritionForDate, readNutritionFallbackFile } from "./sources/asken";
 import {
   fetchTrainingForDateRange,
@@ -27,11 +26,11 @@ export { parseTxtContent, buildStrongData, parseStrongFiles };
  */
 function getTargetDates(from?: string, to?: string): string[] {
   const endDate = to ? new Date(to + "T00:00:00") : getEffectiveToday();
-  const startDate = from ? new Date(from + "T00:00:00") : subDays(endDate, 1);
+  const startDate = from ? new Date(from + "T00:00:00") : new Date(endDate.getTime() - 86400000);
   const dates: string[] = [];
   const current = new Date(startDate);
   while (current <= endDate) {
-    dates.push(format(current, "yyyy-MM-dd"));
+    dates.push(formatDateJst(current));
     current.setDate(current.getDate() + 1);
   }
   return dates;

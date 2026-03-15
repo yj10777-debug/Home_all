@@ -1,14 +1,14 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { format, previousSunday } from "date-fns";
+import { previousSunday } from "date-fns";
 import { generateWeeklyPrompt } from "../../../lib/gemini";
-import { getEffectiveToday } from "../../../lib/dateUtils";
+import { getEffectiveToday, formatDateJst } from "../../../lib/dateUtils";
 
 /**
  * 直近の日曜起点の週開始日を取得する
  */
 function getLatestWeekStart(referenceDate: Date): string {
   const prevSun = previousSunday(referenceDate);
-  return format(prevSun, "yyyy-MM-dd");
+  return formatDateJst(prevSun);
 }
 
 /**
