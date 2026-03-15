@@ -194,10 +194,11 @@ function formatWorkouts(strong?: StrongData | null): string {
 /**
  * 指定日のデータをもとに Gem 貼り付け用の日次評価プロンプトを生成する
  * @param dateStr 対象日付 (YYYY-MM-DD)
+ * @param trigger 実行トリガー（"manual" の場合は現在時刻を考慮したアドバイスを追加）
  * @returns プロンプトテキスト
  * @throws データが見つからない場合
  */
-export async function generateDailyPrompt(dateStr: string): Promise<string> {
+export async function generateDailyPrompt(dateStr: string, trigger: "manual" | "cron" = "cron"): Promise<string> {
   const [dayData, goals, workLocation] = await Promise.all([
     loadDayData(dateStr),
     getGoals(),
@@ -210,49 +211,91 @@ export async function generateDailyPrompt(dateStr: string): Promise<string> {
   const pfc = computePfc(dayData.askenNutrients);
   const totalCalories = computeTotalCalories(dayData.askenNutrients, dayData.askenItems);
   const snackCalories = computeSnackCalories(dayData.askenNutrients, dayData.askenItems);
+  const remainingCalories = Math.max(0, goals.calories - totalCalories);
   const mealText = formatMealItems(dayData.askenItems);
   const workoutText = formatWorkouts(dayData.strongData);
   const hasWorkout = !!dayData.strongData && (dayData.strongData.workouts?.length ?? 0) > 0;
 
-  const fatRatio = totalCalories > 0 ? (pfc.fat * 9 / totalCalories) * 100 : 0;
   const workLocationLabel = workLocation ?? "データなし";
-  return `以下のデータをもとに、システムプロンプトの「筋トレ・食事 評価スコアモデル」に従い、総評（先に）・総合スコア・内訳の順で出力してください。
+  return `以下のデータをもとに、今日の食事と筋トレの評価と、残りの食事で何を食べるべきかを提案してください。
 
-## 目標・参照
-- 目標カロリー: ${goals.calories} kcal/日（推定消費の目安に使ってよい）
-- 目標PFC: P${goals.protein}g / F${goals.fat}g / C${goals.carbs}g
+## 目標
+- カロリー: ${goals.calories} kcal/日
+- たんぱく質(P): ${goals.protein}g / 脂質(F): ${goals.fat}g / 炭水化物(C): ${goals.carbs}g
 
-## 今日の入力データ (${dateStr})
+## 勤務形態
+- ${workLocationLabel}（出社＝通勤・外出あり、在宅＝平日在宅、休日＝土日。在宅日は歩数少なめ・活動量低めでも許容してよい）
 
-### 勤務形態
-- 勤務形態: ${workLocationLabel}（出社＝通勤・外出あり、在宅＝平日在宅、休日＝土日。在宅日は歩数少なめ・活動量低めでも許容してよい）
+## 今日の摂取状況 (${dateStr})
+- 合計カロリー: ${totalCalories} kcal（残り ${remainingCalories} kcal）${snackCalories > 0 ? `\n  ※ 間食 ${snackCalories} kcal を含む（間食はPFC内訳不明のためカロリーのみ加算）` : ""}
+- たんぱく質: ${Math.round(pfc.protein)}g（目標まであと ${Math.max(0, Math.round(goals.protein - pfc.protein))}g）
+- 脂質: ${Math.round(pfc.fat)}g（目標まであと ${Math.max(0, Math.round(goals.fat - pfc.fat))}g）
+- 炭水化物: ${Math.round(pfc.carbs)}g（目標まであと ${Math.max(0, Math.round(goals.carbs - pfc.carbs))}g）
 
-### 摂取
-- 総摂取カロリー: ${totalCalories} kcal
-- たんぱく質: ${Math.round(pfc.protein)}g
-- 脂質: ${Math.round(pfc.fat)}g（脂質割合: ${fatRatio.toFixed(1)}%）
-- 炭水化物: ${Math.round(pfc.carbs)}g
-${snackCalories > 0 ? `- 間食 ${snackCalories} kcal 含む（PFC内訳不明）` : ""}
-
-### 食事内容
+## 食事内容
 ${mealText}
 
-### 筋トレ内容
+## 筋トレ内容
 ${workoutText}
-${hasWorkout ? "（コンパウンド有無・セット数・回数レンジ・漸進性を判定し、刺激スコアと登山ボーナスに反映すること）" : ""}
 
-### 歩数・運動
-${dayData.steps != null ? `歩数: ${dayData.steps.toLocaleString()} 歩` : "歩数: データなし"}
-${dayData.exerciseCalories != null && dayData.exerciseCalories > 0 ? `運動消費: ${dayData.exerciseCalories} kcal（有酸素の目安に使ってよい）` : ""}
+## 運動・歩数
+${dayData.steps != null ? `- 歩数: ${dayData.steps.toLocaleString()} 歩` : "- 歩数データなし"}
+${dayData.exerciseCalories != null && dayData.exerciseCalories > 0 ? `- 運動消費カロリー: ${dayData.exerciseCalories} kcal` : ""}
 
-### その他
-- 睡眠: データなし（スキップまたは中間点でよい）
-- 体重・推定消費カロリー: データなし（目標${goals.calories}kcalを基準にエネルギーバランスを推定してよい）
-- 体脂肪率: データなし
+## 回答ルール
+以下のスコアリングアルゴリズム（100点満点減点方式）に従って得点を算出し、各セクションの得点と理由を示した上でアドバイスしてください。
 
-## 回答
-・挨拶は書かず、1行目から総評（評価の要約・良かった点・改善点を1〜3文）を先に出力すること。
-・空行のあと「総合スコア: XX点」と続け、内訳（エネルギー/30、たんぱく質/20、刺激/20、回復/15、活動量/10、栄養バランス/5、登山ボーナス）を簡潔に出力すること。`;
+### 食事評価（50点）
+1. カロリー収支（20点）: 目標${goals.calories}kcalとの乖離で判定
+   - ±10%以内: 減点なし / ±10-20%: -10点 / ±20%超: -20点
+2. タンパク質充足（15点）: 体重×2.0g以上=減点なし / ×1.6-1.9g=-5点 / ×1.6g未満=-15点
+   ※体重は75kgと仮定（目標タンパク=${goals.protein}g）
+3. PFCバランス（10点）: P:25-35%, F:20-30%, C:40-55%
+   - 全項目範囲内: 減点なし / 1項目範囲外: -5点 / 2項目以上: -10点
+4. 食事タイミング（5点）: 3-5時間間隔で分散=減点なし / 極端な偏り=-5点
+
+### 筋トレ評価（30点）
+1. トレーニング実施（10点）: 実施=減点なし / 未実施（計画的休息除く）=セクション全体0点
+2. 漸進性過負荷（10点）: 前回比增加=+10点 / 維持=+5点 / 低下=0点
+3. 総負荷量（5点）: 推奨範囲内=減点なし / 範囲外=-5点
+4. 種目構成（5点）: コンパウンド含有=減点なし / アイソレーションのみ=-3点
+
+### 生活習慣評価（20点）
+1. 睡眠時間（10点）: 7時間以上=減点なし / 6-7時間=-5点 / 6時間未満=-10点
+   ※睡眠データがない場合はスキップ（満点扱い）
+2. 活動量（10点）: 8000歩以上=減点なし / 5000-8000歩=-5点 / 5000歩未満=-10点
+
+### 回答フォーマット
+1. **総合スコア: XX/100点** を最初に明示
+2. 各セクションの得点内訳と理由を簡潔に
+3. 改善点と残りの食事で食べるべきメニューを3つ提案（各カロリー・PFC付き）${trigger === "manual" ? generateManualAdviceSection() : ""}`;
+}
+
+/**
+ * 手動実行時のみ付与する「今から寝るまでにできること」セクションを生成する
+ * 現在時刻（JST）を基準に、残り時間で取れるアクションをAIに提案させる
+ */
+function generateManualAdviceSection(): string {
+  const now = new Date();
+  // JST（UTC+9）に変換
+  const jstOffset = 9 * 60;
+  const utcMs = now.getTime() + now.getTimezoneOffset() * 60 * 1000;
+  const jst = new Date(utcMs + jstOffset * 60 * 1000);
+  const hours = jst.getHours();
+  const minutes = jst.getMinutes();
+  const timeStr = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+
+  return `
+
+## 今から寝るまでにできること（現在 ${timeStr}）
+以下を踏まえて、今日の残り時間でスコアを上げるために取れる**具体的なアクション**を優先度順に提案してください。
+- 現在時刻は ${timeStr} です。就寝は24:00頃と仮定してください。
+- 減点されている項目を中心に、残り時間で現実的に改善できることに絞ること。
+- 食事の提案は具体的メニュー名・量・PFCを明記すること。
+- 筋トレ未実施なら、今からでも可能な短時間メニューを提案（遅い時間帯なら翌日への持ち越しでもOK）。
+- 歩数不足なら、散歩の時間・距離の目安を提案。
+- 既に達成済みの項目は「維持でOK」と簡潔に。
+- 3〜5個の箇条書きで、最も効果の高いものから順に。`;
 }
 
 /**

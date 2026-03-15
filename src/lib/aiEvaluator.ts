@@ -29,7 +29,7 @@ export async function runDailyEvaluation(
   trigger: "manual" | "cron",
   systemPromptOverride?: string
 ): Promise<EvaluationResult> {
-  const prompt = await generateDailyPrompt(dateStr);
+  const prompt = await generateDailyPrompt(dateStr, trigger);
   const systemPrompt =
     (systemPromptOverride && systemPromptOverride.trim())
       ? systemPromptOverride.trim()

@@ -17,6 +17,22 @@ jest.mock("@/lib/prisma", () => ({
   },
 }));
 
+// ─── dbConfig モック（getGoals はデフォルト値を返す） ──
+jest.mock("@/lib/dbConfig", () => ({
+  getGoals: jest.fn().mockResolvedValue({
+    calories: 2267,
+    protein: 150,
+    fat: 54,
+    carbs: 293,
+  }),
+  DEFAULT_USER_ID: "default",
+}));
+
+// ─── googleCalendar モック ────────────────────────────
+jest.mock("@/lib/googleCalendar", () => ({
+  getWorkLocation: jest.fn().mockResolvedValue(null),
+}));
+
 beforeEach(() => {
   jest.clearAllMocks();
 });
@@ -50,7 +66,7 @@ describe("generateDailyPrompt", () => {
     expect(prompt).toContain("300 kcal");
     expect(prompt).toContain("パン");
     expect(prompt).toContain("たんぱく質: 10g");
-    expect(prompt).toContain("活動量");
+    expect(prompt).toContain("活動量（10点）");
   });
 
   it("筋トレデータがある場合はプロンプトに含まれる", async () => {
@@ -73,7 +89,6 @@ describe("generateDailyPrompt", () => {
 
     expect(prompt).toContain("Bench Press");
     expect(prompt).toContain("胸トレ");
-    expect(prompt).toContain("刺激スコア");
   });
 
   it("PFC の残り量が正しく計算される", async () => {
@@ -92,7 +107,7 @@ describe("generateDailyPrompt", () => {
 
     expect(prompt).toContain("たんぱく質: 90g");
     expect(prompt).toContain("脂質: 35g");
-    expect(prompt).toContain("総摂取カロリー: 1200 kcal");
+    expect(prompt).toContain("合計カロリー: 1200 kcal");
   });
 
   it("間食のカロリーが nutrients にない場合 items から補完される", async () => {
@@ -112,8 +127,8 @@ describe("generateDailyPrompt", () => {
     const { generateDailyPrompt } = await import("@/lib/gemini");
     const prompt = await generateDailyPrompt("2026-02-11");
 
-    expect(prompt).toContain("総摂取カロリー: 886 kcal");
-    expect(prompt).toContain("間食 386 kcal");
+    expect(prompt).toContain("合計カロリー: 886 kcal");
+    expect(prompt).toContain("間食 386 kcal を含む");
     expect(prompt).toContain("クッキー");
     expect(prompt).toContain("アイス");
   });
