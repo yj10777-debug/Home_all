@@ -46,7 +46,7 @@ export default function Home() {
 
             const [resDay, resEval, resSync] = await Promise.all([
                 fetch(`/api/day/${todayStr}`, noCache),
-                fetch("/api/ai/history?limit=1", noCache),
+                fetch(`/api/ai/history?date=${todayStr}&type=daily`, noCache),
                 fetch("/api/sync/status", noCache),
             ]);
 
@@ -128,7 +128,7 @@ export default function Home() {
             const res = await fetch("/api/ai/evaluate", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ type: "daily", trigger: "manual" }),
+                body: JSON.stringify({ date: getEffectiveTodayStr(), type: "daily", trigger: "manual" }),
             });
             const data = await res.json();
             if (!res.ok) throw new Error(data.error || "Evaluation failed");
