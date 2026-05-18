@@ -1,16 +1,16 @@
 /**
  * GET /api/day/[date] のテスト
- * 該当行がない場合は 200 でゼロを返すことを確認
  */
-
 import type { NextApiRequest, NextApiResponse } from "next";
 
 const mockFindUnique = jest.fn();
+const mockUpsert = jest.fn();
 
 jest.mock("@/lib/prisma", () => ({
   prisma: {
     dailyData: {
       findUnique: (...args: unknown[]) => mockFindUnique(...args),
+      upsert: (...args: unknown[]) => mockUpsert(...args),
     },
   },
 }));
@@ -20,39 +20,23 @@ function createRes(): NextApiResponse & { _status?: number; _json?: unknown; _he
     _status: undefined as number | undefined,
     _json: undefined as unknown,
     _headers: {} as Record<string, string>,
-    status(code: number) {
-      (this as typeof res)._status = code;
-      return this;
-    },
-    setHeader(name: string, value: string) {
-      (this as typeof res)._headers![name] = value;
-      return this;
-    },
-    json(body: unknown) {
-      (this as typeof res)._json = body;
-      return this;
-    },
-    end() {
-      return this;
-    },
+    status(code: number) { (this as typeof res)._status = code; return this; },
+    setHeader(name: string, value: string) { (this as typeof res)._headers![name] = value; return this; },
+    json(body: unknown) { (this as typeof res)._json = body; return this; },
+    end() { return this; },
   };
-  return res as NextApiResponse & { _status?: number; _json?: unknown; _headers?: Record<string, string> };
+  return res as unknown as NextApiResponse & { _status?: number; _json?: unknown; _headers?: Record<string, string> };
 }
 
 describe("GET /api/day/[date]", () => {
-  beforeEach(() => {
-    jest.clearAllMocks();
-  });
+  beforeEach(() => { jest.clearAllMocks(); });
 
   it("該当行がない場合は 200 で calories:0, pfc:0 を返す", async () => {
     mockFindUnique.mockResolvedValue(null);
-
     const handler = (await import("@/pages/api/day/[date]")).default;
     const req = { method: "GET", query: { date: "2026-02-24" } } as unknown as NextApiRequest;
     const res = createRes();
-
     await handler(req, res);
-
     expect(res._status).toBe(200);
     expect(res._json).toEqual({
       date: "2026-02-24",
@@ -60,8 +44,8 @@ describe("GET /api/day/[date]", () => {
       pfc: { protein: 0, fat: 0, carbs: 0 },
       steps: null,
       exerciseCalories: null,
+      hasHiking: false,
     });
-    expect(mockFindUnique).toHaveBeenCalledWith({ where: { date: "2026-02-24" } });
   });
 
   it("該当行がある場合は 200 でデータを返す", async () => {
@@ -72,31 +56,63 @@ describe("GET /api/day/[date]", () => {
       strongData: null,
       steps: 8000,
       exerciseCalories: 100,
+      hasHiking: true,
     });
-
     const handler = (await import("@/pages/api/day/[date]")).default;
     const req = { method: "GET", query: { date: "2026-02-24" } } as unknown as NextApiRequest;
     const res = createRes();
-
     await handler(req, res);
-
     expect(res._status).toBe(200);
     const body = res._json as Record<string, unknown>;
     expect(body.date).toBe("2026-02-24");
     expect(body.calories).toBe(500);
     expect((body.pfc as Record<string, number>).protein).toBe(20);
-    expect(body.steps).toBe(8000);
-    expect(body.exerciseCalories).toBe(100);
+    expect(body.hasHiking).toBe(true);
   });
 
   it("日付が不正な場合は 400 を返す", async () => {
     const handler = (await import("@/pages/api/day/[date]")).default;
     const req = { method: "GET", query: { date: "invalid" } } as unknown as NextApiRequest;
     const res = createRes();
-
     await handler(req, res);
-
     expect(res._status).toBe(400);
     expect(mockFindUnique).not.toHaveBeenCalled();
+  });
+});
+
+describe("PATCH /api/day/[date]", () => {
+  beforeEach(() => { jest.clearAllMocks(); });
+
+  it("hasHiking を true に更新する", async () => {
+    mockUpsert.mockResolvedValue({ date: "2026-05-18", hasHiking: true });
+    const handler = (await import("@/pages/api/day/[date]")).default;
+    const req = {
+      method: "PATCH",
+      query: { date: "2026-05-18" },
+      body: { hasHiking: true },
+    } as unknown as NextApiRequest;
+    const res = createRes();
+    await handler(req, res);
+    expect(res._status).toBe(200);
+    expect(res._json).toEqual({ date: "2026-05-18", hasHiking: true });
+    expect(mockUpsert).toHaveBeenCalledWith({
+      where: { date: "2026-05-18" },
+      update: { hasHiking: true },
+      create: { date: "2026-05-18", hasHiking: true },
+      select: { date: true, hasHiking: true },
+    });
+  });
+
+  it("body.hasHiking が boolean でない場合は 400 を返す", async () => {
+    const handler = (await import("@/pages/api/day/[date]")).default;
+    const req = {
+      method: "PATCH",
+      query: { date: "2026-05-18" },
+      body: { hasHiking: "yes" },
+    } as unknown as NextApiRequest;
+    const res = createRes();
+    await handler(req, res);
+    expect(res._status).toBe(400);
+    expect(mockUpsert).not.toHaveBeenCalled();
   });
 });

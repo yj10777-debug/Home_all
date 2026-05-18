@@ -33,6 +33,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         strongData: true,
         steps: true,
         exerciseCalories: true,
+        hasHiking: true,
       },
       orderBy: { date: "desc" },
     });
@@ -55,6 +56,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       steps: number | null;
       exerciseCalories: number | null;
       hasStrong: boolean;
+      hasHiking: boolean;
       hasEvaluation: boolean;
       score: number;
     };
@@ -113,6 +115,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         steps: r.steps,
         exerciseCalories: r.exerciseCalories,
         hasStrong: !!r.strongData,
+        hasHiking: !!r.hasHiking,
         hasEvaluation: evaluatedDates.has(r.date),
         score,
       };

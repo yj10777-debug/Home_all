@@ -9,6 +9,7 @@ type DaySummary = {
   steps: number | null;
   exerciseCalories: number | null;
   hasStrong: boolean;
+  hasHiking: boolean;
 };
 
 const GOAL_CALORIES = 2267;
@@ -128,7 +129,8 @@ export default function DaysIndex() {
                             {d.steps != null && (
                               <span className="text-xs text-[var(--text-tertiary)]">🚶 {d.steps.toLocaleString()}歩</span>
                             )}
-                            {d.hasStrong && <span className="text-xs text-violet-400">💪</span>}
+                            {d.hasStrong && <span className="text-xs text-violet-400" title="筋トレ実施">💪</span>}
+                            {d.hasHiking && <span className="text-xs" title="登山実施">⛰️</span>}
                           </div>
                         </div>
                         <span className="material-symbols-outlined text-[var(--text-tertiary)] group-hover:text-[var(--primary)] transition-colors flex-shrink-0 text-xl">chevron_right</span>

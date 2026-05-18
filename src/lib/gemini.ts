@@ -37,6 +37,7 @@ export type DayData = {
   strongData: StrongData | null;
   steps: number | null;
   exerciseCalories: number | null;
+  hasHiking?: boolean;
 };
 
 /** PFC 合計値 */

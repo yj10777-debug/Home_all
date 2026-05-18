@@ -22,6 +22,8 @@ export default function Home() {
     const [hasPfcData, setHasPfcData] = useState(false);
     const [todaySteps, setTodaySteps] = useState<number | null>(null);
     const [todayExerciseCal, setTodayExerciseCal] = useState<number | null>(null);
+    const [hasHiking, setHasHiking] = useState(false);
+    const [hikingUpdating, setHikingUpdating] = useState(false);
 
     const [latestEval, setLatestEval] = useState<{ date: string; response: string; model: string } | null>(null);
     const [evaluating, setEvaluating] = useState(false);
@@ -65,6 +67,7 @@ export default function Home() {
                 setHasPfcData(!!(data.pfc && (data.pfc.protein > 0 || data.pfc.fat > 0 || data.pfc.carbs > 0)));
                 setTodaySteps(data.steps ?? null);
                 setTodayExerciseCal(data.exerciseCalories ?? null);
+                setHasHiking(!!data.hasHiking);
             }
 
             if (resEval.ok) {
@@ -118,6 +121,28 @@ export default function Home() {
             setSyncResult({ askenCount: 0, strongCount: 0, errors: ["通信エラー"] });
         } finally {
             setSyncing(false);
+        }
+    };
+
+    /** 登山チェックの ON/OFF を切り替える */
+    const handleToggleHiking = async () => {
+        if (hikingUpdating) return;
+        const todayStr = getEffectiveTodayStr();
+        const next = !hasHiking;
+        setHikingUpdating(true);
+        setHasHiking(next); // 楽観更新
+        try {
+            const res = await fetch(`/api/day/${todayStr}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ hasHiking: next }),
+            });
+            if (!res.ok) throw new Error(`PATCH ${res.status}`);
+        } catch (e) {
+            console.error("Failed to update hasHiking", e);
+            setHasHiking(!next); // 失敗時ロールバック
+        } finally {
+            setHikingUpdating(false);
         }
     };
 
@@ -179,7 +204,7 @@ export default function Home() {
             <main className="w-full px-4 md:px-6 lg:px-8 py-6 space-y-6">
                 <section aria-label="今日のサマリー">
                     <h2 className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-4 px-1">今日のサマリー</h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                         <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border-card)] flex items-center gap-3">
                             <div className="relative w-14 h-14 flex-shrink-0">
                                 <svg className="w-full h-full transform -rotate-90" aria-hidden>
@@ -244,6 +269,28 @@ export default function Home() {
                                     </div>
                                 )}
                             </div>
+                        </div>
+
+                        <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border-card)] flex flex-col">
+                            <p className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-2">⛰️ 登山</p>
+                            <button
+                                type="button"
+                                onClick={handleToggleHiking}
+                                disabled={hikingUpdating || loading}
+                                aria-pressed={hasHiking}
+                                aria-label={hasHiking ? "登山チェックを外す" : "登山したとしてチェック"}
+                                className={`min-h-[40px] py-2 text-sm font-bold rounded-lg disabled:opacity-50 flex items-center justify-center gap-2 transition-colors ${
+                                    hasHiking
+                                        ? "bg-[var(--primary)] text-[var(--btn-primary-text)] hover:bg-[var(--primary-hover)]"
+                                        : "bg-[var(--bg-page)] text-[var(--text-secondary)] border border-[var(--border-card)] hover:bg-[var(--bg-card-hover)]"
+                                }`}
+                            >
+                                <span className="text-base leading-none" aria-hidden>{hasHiking ? "✅" : "⬜"}</span>
+                                <span>{hasHiking ? "登山済み ⛰️" : "今日は登山"}</span>
+                            </button>
+                            <p className="text-[10px] text-[var(--text-tertiary)] mt-2">
+                                {hasHiking ? "履歴・カレンダーに⛰️が付きます" : "登山に行ったらチェック"}
+                            </p>
                         </div>
 
                         <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border-card)] flex flex-col">
