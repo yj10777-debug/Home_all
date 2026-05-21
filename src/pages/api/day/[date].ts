@@ -9,39 +9,17 @@ const parseNumeric = (v: string) => {
 
 /**
  * 日次データ取得エンドポイント
- * GET   /api/day/[date] — 指定日のデータを返す（index トップページ用に calories, pfc を含む）
- * PATCH /api/day/[date] — 指定日の hasHiking などユーザー入力フラグを更新する
- *                          body: { hasHiking: boolean }
+ * GET /api/day/[date] — 指定日のデータを返す（index トップページ用に calories, pfc を含む）
  */
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== "GET") {
+    res.setHeader("Allow", ["GET"]);
+    return res.status(405).json({ error: "Method Not Allowed" });
+  }
+
   const date = req.query.date as string;
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     return res.status(400).json({ error: "Invalid date. Use YYYY-MM-DD" });
-  }
-
-  if (req.method === "PATCH") {
-    try {
-      const body = (req.body ?? {}) as { hasHiking?: unknown };
-      if (typeof body.hasHiking !== "boolean") {
-        return res.status(400).json({ error: "hasHiking (boolean) is required" });
-      }
-      const updated = await prisma.dailyData.upsert({
-        where: { date },
-        update: { hasHiking: body.hasHiking },
-        create: { date, hasHiking: body.hasHiking },
-        select: { date: true, hasHiking: true },
-      });
-      res.setHeader("Cache-Control", "no-store, max-age=0");
-      return res.status(200).json(updated);
-    } catch (err) {
-      console.error("PATCH /api/day error:", err);
-      return res.status(500).json({ error: "Internal Server Error" });
-    }
-  }
-
-  if (req.method !== "GET") {
-    res.setHeader("Allow", ["GET", "PATCH"]);
-    return res.status(405).json({ error: "Method Not Allowed" });
   }
 
   try {
@@ -55,7 +33,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         pfc: { protein: 0, fat: 0, carbs: 0 },
         steps: null,
         exerciseCalories: null,
-        hasHiking: false,
       });
     }
 
@@ -104,7 +81,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     if (daily.steps != null) data.steps = daily.steps;
     if (daily.exerciseCalories != null) data.exerciseCalories = daily.exerciseCalories;
-    data.hasHiking = !!daily.hasHiking;
 
     res.setHeader("Cache-Control", "no-store, max-age=0");
     return res.status(200).json(data);

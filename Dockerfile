@@ -90,8 +90,9 @@ COPY --from=builder /app/package.json ./package.json
 # tsx (TypeScriptランタイム) + node-cron を本番用にインストール
 RUN npm install --no-save tsx node-cron
 
-# Playwright ブラウザをインストール（chromium のみ）
-RUN npx playwright install chromium
+# Playwright ブラウザをインストール
+# headless: true 起動時は別バイナリ chrome-headless-shell が必要なため chromium-headless-shell も明示的に入れる
+RUN npx playwright install chromium chromium-headless-shell
 
 # secrets ディレクトリ作成（セッションファイル用）
 RUN mkdir -p /app/secrets

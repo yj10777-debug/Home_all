@@ -10,7 +10,6 @@ type CalendarDay = {
   date: string;
   score: number;
   hasStrong: boolean;
-  hasHiking: boolean;
   hasEvaluation: boolean;
   steps: number | null;
   calories: number;
@@ -22,7 +21,6 @@ type ApiDay = {
   pfc: { p: number; f: number; c: number };
   steps: number | null;
   hasStrong: boolean;
-  hasHiking: boolean;
   hasEvaluation: boolean;
   score: number;
 };
@@ -42,7 +40,6 @@ function toCalendarDay(d: ApiDay): CalendarDay {
     date: d.date,
     score: d.score,
     hasStrong: d.hasStrong,
-    hasHiking: !!d.hasHiking,
     hasEvaluation: d.hasEvaluation,
     steps: d.steps,
     calories: d.calories,
