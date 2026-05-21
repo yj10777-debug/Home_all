@@ -1,6 +1,7 @@
 import { prisma } from "./prisma";
 import { getGoals } from "./dbConfig";
 import { getWorkLocation } from "./googleCalendar";
+import { calculateDailyScore, isDayRecorded } from "./scoring";
 
 /** あすけんの食事アイテム */
 export type AskenItem = {
@@ -44,6 +45,8 @@ export type DayData = {
 export type PfcTotals = { protein: number; fat: number; carbs: number };
 
 export const GOAL_CALORIES = 2267;
+/** 採点時に仮定する体重（kg）。たんぱく質 g/kg 判定に使用 */
+export const ASSUMED_WEIGHT_KG = 75;
 export const GOAL_PFC: Readonly<PfcTotals> = {
   protein: 150,
   fat: 54,
@@ -63,6 +66,7 @@ async function loadDayData(dateStr: string): Promise<DayData | null> {
     strongData: record.strongData as StrongData | null,
     steps: record.steps ?? null,
     exerciseCalories: record.exerciseCalories ?? null,
+    hasHiking: record.hasHiking ?? false,
   };
 }
 
@@ -212,25 +216,47 @@ export async function generateDailyPrompt(dateStr: string, trigger: "manual" | "
   const pfc = computePfc(dayData.askenNutrients);
   const totalCalories = computeTotalCalories(dayData.askenNutrients, dayData.askenItems);
   const snackCalories = computeSnackCalories(dayData.askenNutrients, dayData.askenItems);
-  const remainingCalories = Math.max(0, goals.calories - totalCalories);
   const mealText = formatMealItems(dayData.askenItems);
   const workoutText = formatWorkouts(dayData.strongData);
-  const hasWorkout = !!dayData.strongData && (dayData.strongData.workouts?.length ?? 0) > 0;
 
   const workLocationLabel = workLocation ?? "データなし";
-  return `以下のデータをもとに、今日の食事と筋トレの評価と、残りの食事で何を食べるべきかを提案してください。
+  const exerciseCalories = dayData.exerciseCalories != null && dayData.exerciseCalories > 0 ? dayData.exerciseCalories : 0;
+  const estimatedExpenditure = goals.calories + exerciseCalories;
+  const calorieDiff = Math.round(totalCalories - estimatedExpenditure);
+  const proteinPerKg = ASSUMED_WEIGHT_KG > 0 ? (pfc.protein / ASSUMED_WEIGHT_KG).toFixed(2) : "不明";
+  const fatRatioPct = totalCalories > 0 ? Math.round((pfc.fat * 9 / totalCalories) * 100) : 0;
+
+  // 確定スコア（アプリ側で確定計算。AIには再計算させず転記させる）
+  const sc = calculateDailyScore(dayData, ASSUMED_WEIGHT_KG, goals);
+  const unrecordedNote = sc.total === 0
+    ? "\n※この日は食事・筋トレ・登山の記録がないため採点対象外（0点）。総評では責めず、まず記録を残すことを前向きに促すこと。"
+    : "";
+  const scoreBlock = `## 確定スコア（再計算せず、総合スコアと内訳にこの数値をそのまま転記すること）${unrecordedNote}
+- 総合スコア: ${sc.total}点
+- エネルギー: ${sc.details.energy.score}/30
+- たんぱく質: ${sc.details.protein.score}/20
+- 刺激: ${sc.details.stimulus.score}/20
+- 回復: ${sc.details.recovery.score}/15
+- 活動量: ${sc.details.activity.score}/10
+- 栄養バランス: ${sc.details.nutritionBalance.score}/5
+- 登山ボーナス: +${sc.details.climbingBonus.score}`;
+
+  return `以下のデータをもとに、システムプロンプトの「評価スコアモデル」に従って今日を採点し、良かった点を認めたうえで、残りの食事で何を食べるべきかを前向きに提案してください。
 
 ## 目標
-- カロリー: ${goals.calories} kcal/日
+- カロリー: ${goals.calories} kcal/日（減量目的のため、推定消費に対し -300〜-500kcal が理想）
 - たんぱく質(P): ${goals.protein}g / 脂質(F): ${goals.fat}g / 炭水化物(C): ${goals.carbs}g
+- 体重: ${ASSUMED_WEIGHT_KG}kg（仮定）
 
 ## 勤務形態
 - ${workLocationLabel}（出社＝通勤・外出あり、在宅＝平日在宅、休日＝土日。在宅日は歩数少なめ・活動量低めでも許容してよい）
 
 ## 今日の摂取状況 (${dateStr})
-- 合計カロリー: ${totalCalories} kcal（残り ${remainingCalories} kcal）${snackCalories > 0 ? `\n  ※ 間食 ${snackCalories} kcal を含む（間食はPFC内訳不明のためカロリーのみ加算）` : ""}
-- たんぱく質: ${Math.round(pfc.protein)}g（目標まであと ${Math.max(0, Math.round(goals.protein - pfc.protein))}g）
-- 脂質: ${Math.round(pfc.fat)}g（目標まであと ${Math.max(0, Math.round(goals.fat - pfc.fat))}g）
+- 合計カロリー: ${totalCalories} kcal${snackCalories > 0 ? `（うち間食 ${snackCalories} kcal。間食はPFC内訳不明のためカロリーのみ加算）` : ""}
+- 推定消費カロリー: ${estimatedExpenditure} kcal（目標 ${goals.calories} ＋ 運動消費 ${exerciseCalories}）
+- カロリー収支: ${calorieDiff >= 0 ? "+" : ""}${calorieDiff} kcal（マイナス＝減量に有利）
+- たんぱく質: ${Math.round(pfc.protein)}g（${proteinPerKg}g/kg・目標まであと ${Math.max(0, Math.round(goals.protein - pfc.protein))}g）
+- 脂質: ${Math.round(pfc.fat)}g（目標まであと ${Math.max(0, Math.round(goals.fat - pfc.fat))}g・脂質エネルギー比 ${fatRatioPct}%）
 - 炭水化物: ${Math.round(pfc.carbs)}g（目標まであと ${Math.max(0, Math.round(goals.carbs - pfc.carbs))}g）
 
 ## 食事内容
@@ -239,37 +265,19 @@ ${mealText}
 ## 筋トレ内容
 ${workoutText}
 
+## 登山
+- ${dayData.hasHiking ? "この日は登山を実施（下半身・有酸素を含む高負荷活動。トレーニング刺激と登山ボーナスに反映すること）" : "登山なし"}
+
 ## 運動・歩数
 ${dayData.steps != null ? `- 歩数: ${dayData.steps.toLocaleString()} 歩` : "- 歩数データなし"}
-${dayData.exerciseCalories != null && dayData.exerciseCalories > 0 ? `- 運動消費カロリー: ${dayData.exerciseCalories} kcal` : ""}
+${exerciseCalories > 0 ? `- 運動消費カロリー: ${exerciseCalories} kcal` : "- 運動消費カロリーデータなし"}
+
+${scoreBlock}
 
 ## 回答ルール
-以下のスコアリングアルゴリズム（100点満点減点方式）に従って得点を算出し、各セクションの得点と理由を示した上でアドバイスしてください。
-
-### 食事評価（50点）
-1. カロリー収支（20点）: 目標${goals.calories}kcalとの乖離で判定
-   - ±10%以内: 減点なし / ±10-20%: -10点 / ±20%超: -20点
-2. タンパク質充足（15点）: 体重×2.0g以上=減点なし / ×1.6-1.9g=-5点 / ×1.6g未満=-15点
-   ※体重は75kgと仮定（目標タンパク=${goals.protein}g）
-3. PFCバランス（10点）: P:25-35%, F:20-30%, C:40-55%
-   - 全項目範囲内: 減点なし / 1項目範囲外: -5点 / 2項目以上: -10点
-4. 食事タイミング（5点）: 3-5時間間隔で分散=減点なし / 極端な偏り=-5点
-
-### 筋トレ評価（30点）
-1. トレーニング実施（10点）: 実施=減点なし / 未実施（計画的休息除く）=セクション全体0点
-2. 漸進性過負荷（10点）: 前回比增加=+10点 / 維持=+5点 / 低下=0点
-3. 総負荷量（5点）: 推奨範囲内=減点なし / 範囲外=-5点
-4. 種目構成（5点）: コンパウンド含有=減点なし / アイソレーションのみ=-3点
-
-### 生活習慣評価（20点）
-1. 睡眠時間（10点）: 7時間以上=減点なし / 6-7時間=-5点 / 6時間未満=-10点
-   ※睡眠データがない場合はスキップ（満点扱い）
-2. 活動量（10点）: 8000歩以上=減点なし / 5000-8000歩=-5点 / 5000歩未満=-10点
-
-### 回答フォーマット
-1. **総合スコア: XX/100点** を最初に明示
-2. 各セクションの得点内訳と理由を簡潔に
-3. 改善点と残りの食事で食べるべきメニューを3つ提案（各カロリー・PFC付き）${trigger === "manual" ? generateManualAdviceSection() : ""}`;
+- 総合スコアと内訳は上記「確定スコア」の数値をそのまま転記する（自分で再計算・推定しない）。
+- あなたの役割は、確定スコアを踏まえた前向きな総評と、残りの食事で食べるべきメニュー3つ（各カロリー・PFC付き）の提案。
+- 出力形式はシステムプロンプトの指示に従う。${trigger === "manual" ? generateManualAdviceSection() : ""}`;
 }
 
 /**
@@ -317,19 +325,25 @@ export async function generateWeeklyPrompt(sundayStr: string): Promise<string> {
   });
   const recordMap = new Map(records.map((r) => [r.date, r]));
 
+  const goals = await getGoals();
+
   const saturdayStr = dateStrs[6];
   const dailySummaries: string[] = [];
+  const dailyScoreLines: string[] = [];
   let weekTotalCalories = 0;
   let weekTotalProtein = 0;
   let weekTotalFat = 0;
   let weekTotalCarbs = 0;
   let workoutDays = 0;
   let totalVolume = 0;
+  let weekTotalScore = 0;
+  let scoredDays = 0;
 
   for (const dateStr of dateStrs) {
     const record = recordMap.get(dateStr);
     if (!record) {
       dailySummaries.push(`${dateStr}: データなし`);
+      dailyScoreLines.push(`${dateStr}: データなし`);
       continue;
     }
 
@@ -354,17 +368,44 @@ export async function generateWeeklyPrompt(sundayStr: string): Promise<string> {
       ? `筋トレあり(${strong.workouts.map((w) => w.title).join(", ")} / ${strong.totals?.volumeKg ?? 0}kg)`
       : "筋トレなし";
 
+    const dayData: DayData = {
+      date: record.date,
+      askenItems: items,
+      askenNutrients: nutrients,
+      strongData: strong,
+      steps: record.steps ?? null,
+      exerciseCalories: record.exerciseCalories ?? null,
+      hasHiking: record.hasHiking ?? false,
+    };
+
+    // 食事・筋トレ・登山のいずれも無い日は「記録なし」とし、採点・週平均から除外する
+    if (!isDayRecorded(dayData)) {
+      dailySummaries.push(`${dateStr}: 記録なし`);
+      dailyScoreLines.push(`${dateStr}: 記録なし`);
+      continue;
+    }
+
+    const hiking = (record.hasHiking ?? false) ? " / 登山あり⛰️" : "";
     dailySummaries.push(
-      `${dateStr}: ${cal}kcal / P${Math.round(pfc.protein)}g F${Math.round(pfc.fat)}g C${Math.round(pfc.carbs)}g / ${workoutSummary}`
+      `${dateStr}: ${cal}kcal / P${Math.round(pfc.protein)}g F${Math.round(pfc.fat)}g C${Math.round(pfc.carbs)}g / ${workoutSummary}${hiking}`
     );
+
+    // 日別の確定スコア（アプリ側で確定計算）
+    const sc = calculateDailyScore(dayData, ASSUMED_WEIGHT_KG, goals);
+    weekTotalScore += sc.total;
+    scoredDays++;
+    dailyScoreLines.push(`${dateStr}: ${sc.total}点`);
   }
 
   const avgCalories = Math.round(weekTotalCalories / 7);
   const avgProtein = Math.round(weekTotalProtein / 7);
   const avgFat = Math.round(weekTotalFat / 7);
   const avgCarbs = Math.round(weekTotalCarbs / 7);
+  const avgScore = scoredDays > 0 ? Math.round(weekTotalScore / scoredDays) : 0;
 
-  const goals = await getGoals();
+  const weeklyScoreBlock = `## 確定スコア（再計算せず、日別スコアと週平均にこの数値をそのまま転記すること）
+${dailyScoreLines.join("\n")}
+- 週平均スコア: ${avgScore}点（記録あり${scoredDays}日の平均）`;
 
   return `以下の1週間分のデータを総合的に評価し、改善点と良かった点をまとめてください。
 
@@ -380,11 +421,12 @@ ${dailySummaries.join("\n")}
 - 平均PFC: P${avgProtein}g / F${avgFat}g / C${avgCarbs}g
 - 筋トレ日数: ${workoutDays}日 / 合計ボリューム: ${totalVolume}kg
 
+${weeklyScoreBlock}
+
 ## 回答ルール
-1. 1週間の全体的な評価（カロリー・PFCの達成度、筋トレとの連動性）
-2. 良かったポイント（具体的な日付やメニューを挙げて）
-3. 改善ポイント（具体的な日付や不足を挙げて）
-4. 来週に向けたアドバイス`;
+- 日別スコアと週平均スコアは上記「確定スコア」の数値をそのまま転記する（再計算しない）。
+- まず良かった点を具体的な日付とともに認める（前向きなトーン）。
+- 構成: 1) 週全体の総評（週平均スコアに触れる）、2) 良かった日・ポイント、3) 次に伸ばせる日・ポイント、4) 来週に向けた具体的アドバイス。`;
 }
 
 /**
@@ -392,63 +434,74 @@ ${dailySummaries.join("\n")}
  * 筋トレ・食事 評価スコアモデル（100点満点・単一ファイル版）
  */
 export function getGemSystemPrompt(): string {
-  return `あなたは栄養管理と筋トレに詳しいパーソナルトレーナーです。
-ユーザーから食事・筋トレ・歩数などのデータが渡されるので、下記の「筋トレ・食事 評価スコアモデル」に従い100点満点でスコアリングし、総評とスコア内訳を出力してください。
+  return `あなたは栄養管理と筋トレに詳しい、前向きで親身なパーソナルトレーナーです。
+ユーザーの目的は「減量しつつ筋量維持＋登山適性向上」。渡されたデータを下記「評価スコアモデル」で採点し、まず良かった点を具体的に認めたうえで、次の一手を励ましながら助言してください。
 
-■ 回答のルール（厳守）
-・「はい」「お任せください」「承知しました」などの挨拶や無駄な前置きは一切書かない。
-・回答は必ず総評から始める。1〜3文で、評価の要約・良かった点・改善点を簡潔に書く。そのあとで総合スコアと内訳を書く。
-・簡潔に、要点のみを書く。冗長な表現は避ける。
+■ 基本姿勢（厳守）
+・ユーザーのやる気を引き出すことを最優先する。できている点を必ず最初に具体的に挙げて認める。
+・足りない点は「減点」「ダメ」ではなく「次に伸ばせる余地」として前向きに書く。冷たい断定や厳しい言い回しは避ける。
+・休息日・登山日など筋トレをしていない日を一律に責めない（③のルールに従う）。
+・「承知しました」等の挨拶や前置きは書かない。簡潔に、要点のみ。
 
-■ 目的
-減量しつつ筋量維持＋登山適性向上
-
-■ 入力データ（渡されたもののみ使用。ない項目はスキップまたは仮定してよい）
-・体重（kg） ・摂取カロリー（kcal） ・推定消費カロリー（kcal）
-・たんぱく質摂取量（g） ・脂質摂取量（g） ・総摂取カロリー（kcal）
-・トレーニング内容：コンパウンド種目有無（Yes/No）、合計セット数、主な回数レンジ、漸進性有無（Yes/No）
-・睡眠時間（h） ・歩数 ・体脂肪率（任意） ・有酸素時間（任意）
+■ 入力データ（渡されたもののみ使用。無い項目は満点扱いまたはスキップ）
+体重 / 摂取カロリー / 推定消費カロリー / カロリー収支 / たんぱく質 / 脂質 / 炭水化物 / 筋トレ内容 / 歩数 / 運動消費カロリー / 登山実施フラグ / 睡眠（任意）
 
 ────────────────────────
+評価スコアモデル（合計100点 ＋ 登山ボーナス）。各項目「満点に対しどれだけ取れたか」の加点方式で考える。
+
 ① エネルギーバランス（30点）
-カロリー差 = 摂取カロリー - 推定消費カロリー
--300〜-500 → 30点  -200〜-299 → 25点  -500〜-700 → 22点  -100〜-199 → 18点
-±100以内 → 10点   -700以下 → 12点   +200以上 → 5点
+カロリー収支 = 摂取カロリー − 推定消費カロリー（推定消費 = 目標カロリー ＋ 運動消費カロリー）
+減量目的の理想は -300〜-500。下記の区間は重複しない。収支の数値が入る区間を1つだけ選ぶこと（数値が大きくマイナスなら必ず一番上の区間）。
+・-700未満（大きなマイナス。登山日・高活動日に多い） → 22
+・-700〜-500 → 27
+・-500〜-300（理想） → 30
+・-300〜-200 → 27
+・-200〜-100 → 23
+・-100〜+100 → 18
+・+100〜+200 → 13
+・+200より大きい → 9
+※登山日・運動消費が多い高活動日は、大きなマイナス収支でも問題なし。-700未満でも22点を下限とし責めない。むしろ「よく動いた」と認める。
 
 ② たんぱく質（20点）
-g/kg = たんぱく質摂取量 ÷ 体重
-2.0以上 → 20点  1.8–1.99 → 17点  1.6–1.79 → 14点  1.4–1.59 → 10点  1.4未満 → 5点
-※体重が不明な場合は目標P${GOAL_PFC.protein}gを充足していれば高得点とする
+g/kg = たんぱく質摂取量 ÷ 体重（体重不明なら目標P${GOAL_PFC.protein}gに対する達成率で代用）
+2.0以上 → 20  /  1.8–1.99 → 17  /  1.6–1.79 → 14  /  1.4–1.59 → 11  /  1.4未満 → 8（1.4未満は必ず8点。高くしない）
 
-③ トレーニング刺激（20点）各5点
-・コンパウンド種目あり ・合計10セット以上 ・6–12回レンジ中心 ・漸進性あり
-刺激スコア = 該当数 × 5
+③ トレーニング刺激（20点）
+・筋トレを実施した日: 次の各5点の合計。コンパウンド種目あり / 合計10セット以上 / 6–12回レンジ中心 / 漸進性あり。
+・登山を実施した日（筋トレなしでも）: 下半身・全身持久の高負荷刺激として 18点 を基準に評価。
+・筋トレも登山もない日: 計画的な休息日とみなし 満点(20点)扱い。休んだことを責めない。
 
 ④ 回復（15点）
-7時間以上 → 15点  6.5–6.9時間 → 12点  6.0–6.4時間 → 9点  5.5–5.9時間 → 6点  5.5時間未満 → 3点
-※睡眠6時間未満の場合、エネルギー項目から-3点補正
-※睡眠データなしの場合はスキップ（満点扱いまたは中間点）
+7時間以上 → 15  /  6.5–6.9 → 13  /  6.0–6.4 → 11  /  5.5–5.9 → 8  /  5.5未満 → 5
+※睡眠データがない場合は満点(15点)扱いとし、減点しない。ただしその際は「睡眠が良好だった」と断定せず、「睡眠は記録なしのため満点扱い」として総評で触れること。
 
 ⑤ 活動量（10点）
-10000歩以上 → 10点  8000–9999歩 → 8点  6000–7999歩 → 6点  4000–5999歩 → 4点  4000歩未満 → 2点
+10000歩以上 → 10  /  8000–9999 → 9  /  6000–7999 → 7  /  4000–5999 → 5  /  4000未満 → 3
 
 ⑥ 栄養バランス（5点）
-脂質割合 = (脂質g × 9) ÷ 総摂取カロリー
-20–30% → 5点  30–35% → 3点  35%以上 → 1点
+プロンプトに記載の「脂質エネルギー比 ○%」をそのまま使う（自分で再計算しない）。
+20–30% → 5  /  15–20%または30–35% → 4  /  15%未満 → 4  /  35%超 → 2
 
-■ 登山適性ボーナス（最大+8点）
-・下半身種目あり → +3  ・体脂肪率15%未満 → +3  ・有酸素20分以上 → +2
-※最終スコア上限は100点
+■ 登山ボーナス（最大+8点。最終スコア上限100）。次の該当分を必ず合算する（省略禁止）。
+・登山実施フラグあり → 必ず +5 を計上（下半身・有酸素を兼ねた登山適性向上の直接活動）
+・筋トレで下半身種目あり → +3
+・運動消費200kcal以上の有酸素 → +2
+（合算し最大+8。例: 登山フラグあり＋運動消費200kcal以上 = +7）
 
-■ 総合スコア計算
-総合スコア = エネルギー + たんぱく質 + 刺激 + 回復 + 活動量 + 栄養バランス + 登山ボーナス
+■ 総合スコア = ①+②+③+④+⑤+⑥ ＋ 登山ボーナス（上限100）
 
-■ 評価基準
-85–100 → 非常に良い（理想減量）  75–84 → 良い  65–74 → 及第点  50–64 → 改善必要  50未満 → 方向修正必要
+■ 評価基準（前向きな表現で）
+85–100 → 非常に良い  75–84 → 良い  65–74 → 及第点・あと一歩  55–64 → 伸びしろあり  55未満 → 仕切り直して前進
 
-■ 出力形式（この順で出力すること）
-1. 総評: 1行目から。評価基準に沿った一言と、良かった点・改善点・アドバイスを1〜3文で簡潔に（挨拶なし）。
-2. 空行のあと「総合スコア: XX点」と書く。
-3. 内訳: エネルギー: X/30 たんぱく質: X/20 刺激: X/20 回復: X/15 活動量: X/10 栄養バランス: X/5 登山ボーナス: +X
-4. 週次まとめの場合は、日別スコアと週全体の傾向・良かった日・改善が必要な日を具体的に。`;
+■ スコアの扱い（重要）
+・日次・週次いずれも、プロンプトに「確定スコア」が与えられる。スコア（日次の総合・内訳、週次の日別・週平均）は必ずその数値をそのまま転記し、自分で再計算・推定しないこと。
+・上記①〜⑥と登山ボーナスの基準は、総評で「なぜこの点なのか」を説明するための参考。点数自体は確定スコアに従う。
+
+■ 出力形式（この順）
+1. 総評（1行目から、挨拶なし）: まず良かった点を具体的に1つ以上認め、続いて次の一手を1〜2文。前向きなトーンで合計2〜3文。
+2. 空行のあと「総合スコア: XX点」（確定スコアの値）。
+3. 内訳: エネルギー: X/30 たんぱく質: X/20 刺激: X/20 回復: X/15 活動量: X/10 栄養バランス: X/5 登山ボーナス: +X（すべて確定スコアの値）
+4. 残りの食事で食べるべきメニューを3つ提案（各カロリー・PFC付き）。
+5. 週次まとめの場合は、与えられた確定スコアの日別スコア・週平均スコアをそのまま転記し、週全体の傾向・良かった日・次に伸ばせる日を具体的に。
+`;
 }

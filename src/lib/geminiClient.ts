@@ -22,9 +22,17 @@ export async function callGemini(prompt: string, systemPrompt?: string): Promise
   const modelName = process.env.GEMINI_MODEL || DEFAULT_MODEL;
   const genAI = new GoogleGenerativeAI(apiKey);
 
+  // 応答速度対策: 2.5系は内部思考(thinking)で遅くなるため既定で thinkingBudget=0（無効化）。
+  // GEMINI_THINKING_BUDGET で上書き可能（0=無効, -1=動的, 正数=トークン上限）。
+  const thinkingBudgetRaw = process.env.GEMINI_THINKING_BUDGET;
+  const thinkingBudget = thinkingBudgetRaw != null && thinkingBudgetRaw !== "" ? Number(thinkingBudgetRaw) : 0;
+
   const model = genAI.getGenerativeModel({
     model: modelName,
     ...(systemPrompt ? { systemInstruction: systemPrompt } : {}),
+    ...(Number.isFinite(thinkingBudget)
+      ? { generationConfig: { thinkingConfig: { thinkingBudget } } as Record<string, unknown> }
+      : {}),
   });
 
   const result = await model.generateContent(prompt);

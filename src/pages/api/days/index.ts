@@ -102,6 +102,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           strongData: (r.strongData as StrongData) ?? null,
           steps: r.steps ?? null,
           exerciseCalories: r.exerciseCalories ?? null,
+          hasHiking: !!r.hasHiking,
         };
         score = calculateDailyScore(dayData, undefined, goals).total;
       } catch (e) {

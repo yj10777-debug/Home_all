@@ -2,14 +2,15 @@
  * 筋トレ・食事 評価スコアモデル（100点満点）
  * 減量しつつ筋量維持＋登山適性向上を目的とした日次スコア計算
  */
-import { DayData } from './gemini';
+import type { DayData } from './gemini';
 import { DEFAULT_GOALS, type Goals } from './dbConfig';
 
 /** デフォルト体重（kg）- データがない場合に使用 */
 const DEFAULT_WEIGHT_KG = 75;
 
-function getEstimatedExpenditure(goalCalories: number): number {
-  return goalCalories;
+/** 推定消費 = 目標カロリー + 運動消費カロリー（運動分を加味） */
+function getEstimatedExpenditure(goalCalories: number, exerciseCalories: number): number {
+  return goalCalories + Math.max(0, exerciseCalories);
 }
 
 /** スコア内訳（新モデル: エネルギー30+たんぱく質20+刺激20+回復15+活動量10+栄養5+登山ボーナス最大8） */
@@ -59,19 +60,20 @@ function getIntake(day: DayData): { calories: number; protein: number; fat: numb
   return { calories, protein, fat, carbs };
 }
 
-/** ① エネルギーバランス（30点） カロリー差 = 摂取 - 推定消費 */
-function scoreEnergy(calories: number, goalCalories: number): { score: number; label: string } {
-  const expenditure = getEstimatedExpenditure(goalCalories);
+/** ① エネルギーバランス（30点） カロリー差 = 摂取 - 推定消費。高活動日は大きなマイナスでも責めない */
+function scoreEnergy(calories: number, goalCalories: number, exerciseCalories: number): { score: number; label: string } {
+  const expenditure = getEstimatedExpenditure(goalCalories, exerciseCalories);
   const diff = calories - expenditure;
 
   if (diff >= -500 && diff <= -300) return { score: 30, label: '-300〜-500 (30点)' };
-  if (diff >= -299 && diff <= -200) return { score: 25, label: '-200〜-299 (25点)' };
-  if (diff >= -700 && diff < -500) return { score: 22, label: '-500〜-700 (22点)' };
-  if (diff >= -199 && diff <= -100) return { score: 18, label: '-100〜-199 (18点)' };
-  if (diff >= -100 && diff <= 100) return { score: 10, label: '±100以内 (10点)' };
-  if (diff < -700) return { score: 12, label: '-700以下 (12点)' };
-  if (diff > 200) return { score: 5, label: '+200以上 (5点)' };
-  return { score: 10, label: '±100付近 (10点)' };
+  if (diff >= -299 && diff <= -200) return { score: 27, label: '-200〜-299 (27点)' };
+  if (diff >= -700 && diff < -500) return { score: 27, label: '-500〜-700 (27点)' };
+  if (diff >= -199 && diff <= -100) return { score: 23, label: '-100〜-199 (23点)' };
+  if (diff >= -100 && diff <= 100) return { score: 18, label: '±100以内 (18点)' };
+  if (diff < -700) return { score: 22, label: '-700以下・高活動日 (22点)' };
+  if (diff >= 100 && diff < 200) return { score: 13, label: '+100〜+199 (13点)' };
+  if (diff >= 200) return { score: 9, label: '+200以上 (9点)' };
+  return { score: 18, label: '±100付近 (18点)' };
 }
 
 /** ② たんぱく質（20点） g/kg */
@@ -80,14 +82,17 @@ function scoreProtein(protein: number, weightKg: number): { score: number; label
   if (gPerKg >= 2.0) return { score: 20, label: '2.0以上 (20点)' };
   if (gPerKg >= 1.8) return { score: 17, label: '1.8–1.99 (17点)' };
   if (gPerKg >= 1.6) return { score: 14, label: '1.6–1.79 (14点)' };
-  if (gPerKg >= 1.4) return { score: 10, label: '1.4–1.59 (10点)' };
-  return { score: 5, label: '1.4未満 (5点)' };
+  if (gPerKg >= 1.4) return { score: 11, label: '1.4–1.59 (11点)' };
+  return { score: 8, label: '1.4未満 (8点)' };
 }
 
 /** ③ トレーニング刺激（20点）各5点: コンパウンド・10セット以上・6-12回・漸進性 */
 function scoreStimulus(day: DayData): { score: number; label: string } {
   const workouts = day.strongData?.workouts ?? [];
   if (workouts.length === 0) {
+    if (day.hasHiking) {
+      return { score: 18, label: '登山実施 (下半身・持久の高負荷 18点)' };
+    }
     return { score: 20, label: '休息日 (満点扱い)' };
   }
 
@@ -120,9 +125,9 @@ function scoreStimulus(day: DayData): { score: number; label: string } {
   return { score, label: `${score}/20 (${parts.join('・')})` };
 }
 
-/** ④ 回復（15点）睡眠。データなしは中間点 */
+/** ④ 回復（15点）睡眠。データなしは満点扱い（減点しない） */
 function scoreRecovery(_day: DayData): { score: number; label: string } {
-  return { score: 9, label: 'データなし (6.0–6.4時間相当 9点)' };
+  return { score: 15, label: '睡眠データなし (満点扱い)' };
 }
 
 /** ⑤ 活動量（10点）歩数 */
@@ -130,9 +135,9 @@ function scoreActivity(steps: number | null): { score: number; label: string } {
   const s = steps ?? 0;
   if (s >= 10000) return { score: 10, label: '10000歩以上 (10点)' };
   if (s >= 8000) return { score: 8, label: '8000–9999歩 (8点)' };
-  if (s >= 6000) return { score: 6, label: '6000–7999歩 (6点)' };
-  if (s >= 4000) return { score: 4, label: '4000–5999歩 (4点)' };
-  return { score: 2, label: '4000歩未満 (2点)' };
+  if (s >= 6000) return { score: 7, label: '6000–7999歩 (7点)' };
+  if (s >= 4000) return { score: 5, label: '4000–5999歩 (5点)' };
+  return { score: 3, label: '4000歩未満 (3点)' };
 }
 
 /** ⑥ 栄養バランス（5点）脂質割合 */
@@ -140,39 +145,66 @@ function scoreNutritionBalance(calories: number, fat: number): { score: number; 
   if (calories <= 0) return { score: 3, label: 'データ不足 (3点)' };
   const fatRatio = (fat * 9 / calories) * 100;
   if (fatRatio >= 20 && fatRatio <= 30) return { score: 5, label: '脂質20–30% (5点)' };
-  if (fatRatio > 30 && fatRatio <= 35) return { score: 3, label: '脂質30–35% (3点)' };
-  if (fatRatio > 35) return { score: 1, label: '脂質35%以上 (1点)' };
-  return { score: 3, label: '脂質20%未満 (3点)' };
+  if ((fatRatio >= 15 && fatRatio < 20) || (fatRatio > 30 && fatRatio <= 35)) return { score: 4, label: '脂質15–20%/30–35% (4点)' };
+  if (fatRatio > 35) return { score: 2, label: '脂質35%以上 (2点)' };
+  return { score: 4, label: '脂質15%未満 (4点)' };
 }
 
-/** 登山適性ボーナス（最大+8）下半身+3, 体脂肪15%未満+3, 有酸素20分+2 */
+/** 登山適性ボーナス（最大+8）登山実施+5, 下半身+3, 有酸素200kcal以上+2 */
 function scoreClimbingBonus(day: DayData, hasLower: boolean): { score: number; label: string } {
   let bonus = 0;
   const parts: string[] = [];
 
+  if (day.hasHiking) {
+    bonus += 5;
+    parts.push('登山+5');
+  }
   if (hasLower) {
     bonus += 3;
     parts.push('下半身+3');
   }
   const exCal = day.exerciseCalories ?? 0;
-  if (exCal >= 100) {
+  if (exCal >= 200) {
     bonus += 2;
     parts.push('有酸素+2');
   }
-  return { score: Math.min(8, bonus), label: parts.length ? `+${bonus} (${parts.join(' ')})` : '0' };
+  return { score: Math.min(8, bonus), label: parts.length ? `+${Math.min(8, bonus)} (${parts.join(' ')})` : '0' };
+}
+
+/**
+ * その日に採点対象となる記録があるか判定する。
+ * 食事カロリー・筋トレ・登山のいずれも無い日は「記録なし」とみなす（歩数のみは記録なし扱い）。
+ */
+export function isDayRecorded(day: DayData): boolean {
+  const intake = getIntake(day);
+  const hasWorkout = (day.strongData?.workouts?.length ?? 0) > 0;
+  return intake.calories > 0 || hasWorkout || !!day.hasHiking;
 }
 
 /**
  * 1日分のデータから新スコアモデルでスコアを計算する
  * @param goals 未指定時は DEFAULT_GOALS を使用
+ * @returns 記録なし日は total=0・各項目0（label「記録なし」）を返す
  */
 export function calculateDailyScore(
   day: DayData,
   weightKg: number = DEFAULT_WEIGHT_KG,
   goals: Goals = DEFAULT_GOALS
 ): ScoreBreakdown {
+  // 記録なし日は採点しない（floor によって空の日が高得点になるのを防ぐ）
+  if (!isDayRecorded(day)) {
+    const none = (): { score: number; label: string } => ({ score: 0, label: '記録なし' });
+    return {
+      total: 0,
+      details: {
+        energy: none(), protein: none(), stimulus: none(), recovery: none(),
+        activity: none(), nutritionBalance: none(), climbingBonus: none(),
+      },
+    };
+  }
+
   const intake = getIntake(day);
-  const energy = scoreEnergy(intake.calories, goals.calories);
+  const energy = scoreEnergy(intake.calories, goals.calories, day.exerciseCalories ?? 0);
   const protein = scoreProtein(intake.protein, weightKg);
   const stimulus = scoreStimulus(day);
   const recovery = scoreRecovery(day);
