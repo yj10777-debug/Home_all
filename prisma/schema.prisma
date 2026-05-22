@@ -85,6 +85,8 @@ model DailyData {
   steps              Int?
   /// 運動消費カロリー (kcal)
   exerciseCalories   Float?
+  /// 登山したかどうか（ユーザー手動チェック）
+  hasHiking          Boolean  @default(false)
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

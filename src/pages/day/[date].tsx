@@ -20,6 +20,7 @@ type DayData = {
   pfc?: { protein: number; fat: number; carbs: number };
   asken?: { date?: string; items?: AskenItem[]; nutrients?: Record<string, Record<string, string>> };
   strong?: StrongData | null;
+  hasHiking?: boolean;
 };
 
 const GOAL_CALORIES = 2267;
@@ -53,6 +54,29 @@ export default function DayPage() {
   const [aiEval, setAiEval] = useState<AiEval | null>(null);
   const [evaluating, setEvaluating] = useState(false);
   const [evalError, setEvalError] = useState<string | null>(null);
+  const [hikingUpdating, setHikingUpdating] = useState(false);
+
+  /** 登山チェックを切り替える */
+  const handleToggleHiking = async () => {
+    if (!date || typeof date !== "string" || hikingUpdating) return;
+    const current = !!data?.hasHiking;
+    const next = !current;
+    setHikingUpdating(true);
+    setData((prev) => (prev ? { ...prev, hasHiking: next } : prev));
+    try {
+      const res = await fetch(`/api/day/${date}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hasHiking: next }),
+      });
+      if (!res.ok) throw new Error(`PATCH ${res.status}`);
+    } catch (e) {
+      console.error("Failed to update hasHiking", e);
+      setData((prev) => (prev ? { ...prev, hasHiking: current } : prev));
+    } finally {
+      setHikingUpdating(false);
+    }
+  };
 
   useEffect(() => {
     if (!date || typeof date !== "string") return;
@@ -251,6 +275,37 @@ export default function DayPage() {
                   </div>
                 </div>
               )}
+            </div>
+
+            {/* 登山チェックカード */}
+            <div className="mt-8 bg-[var(--bg-card)] border border-[var(--border-card)] rounded-xl p-6">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-[var(--accent-muted)] flex items-center justify-center text-xl" aria-hidden>
+                    ⛰️
+                  </div>
+                  <div>
+                    <h2 className="font-bold text-[var(--text-primary)] text-lg">登山</h2>
+                    <p className="text-xs text-[var(--text-tertiary)]">
+                      {data.hasHiking ? "この日は登山しました（履歴・カレンダーに⛰️が表示されます）" : "この日に登山した場合はチェック"}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleToggleHiking}
+                  disabled={hikingUpdating}
+                  aria-pressed={!!data.hasHiking}
+                  className={`min-h-[44px] px-4 py-2 text-sm font-bold rounded-lg disabled:opacity-50 flex items-center gap-2 transition-colors ${
+                    data.hasHiking
+                      ? "bg-[var(--primary)] text-[var(--btn-primary-text)] hover:bg-[var(--primary-hover)]"
+                      : "bg-[var(--bg-page)] text-[var(--text-secondary)] border border-[var(--border-card)] hover:bg-[var(--bg-card-hover)]"
+                  }`}
+                >
+                  <span aria-hidden>{data.hasHiking ? "✅" : "⬜"}</span>
+                  <span>{data.hasHiking ? "登山済み" : "登山したとしてチェック"}</span>
+                </button>
+              </div>
             </div>
 
             {/* 筋トレカード */}

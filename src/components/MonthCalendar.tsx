@@ -7,6 +7,7 @@ type CalendarDay = {
     date: string;
     score: number;
     hasStrong: boolean;
+    hasHiking: boolean;
     hasEvaluation: boolean;
     steps: number | null;
     calories: number;
@@ -136,6 +137,7 @@ export default function MonthCalendar({
                                         {format(dateObj, 'd')}
                                     </span>
                                     {dayData.hasStrong && <span className="text-xs opacity-80" title="筋トレ実施">💪</span>}
+                                    {dayData.hasHiking && <span className="text-xs opacity-80" title="登山実施">⛰️</span>}
                                     {goalMet && <span className="text-xs opacity-80" title="目標達成">💮</span>}
                                 </span>
                             </div>
@@ -196,6 +198,7 @@ export default function MonthCalendar({
             {showCaloriesInCell && (
                 <div className="flex flex-wrap items-center gap-4 mt-4 pt-3 border-t border-[var(--border-card)] text-[10px] text-[var(--text-tertiary)]">
                     <span className="flex items-center gap-1.5">💪 筋トレ</span>
+                    <span className="flex items-center gap-1.5">⛰️ 登山</span>
                     <span className="flex items-center gap-1.5">💮 目標達成</span>
                 </div>
             )}
