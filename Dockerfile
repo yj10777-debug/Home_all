@@ -91,8 +91,10 @@ COPY --from=builder /app/package.json ./package.json
 RUN npm install --no-save tsx node-cron
 
 # Playwright ブラウザをインストール
-# headless: true 起動時は別バイナリ chrome-headless-shell が必要なため chromium-headless-shell も明示的に入れる
-RUN npx playwright install chromium chromium-headless-shell
+# PLAYWRIGHT_BROWSERS_PATH を固定して、インストール先とランタイムの参照先を一致させる
+# npx ではなくローカルの playwright バイナリを使うことでバージョンのズレを防ぐ
+ENV PLAYWRIGHT_BROWSERS_PATH=/app/playwright-browsers
+RUN ./node_modules/.bin/playwright install chromium chromium-headless-shell
 
 # secrets ディレクトリ作成（セッションファイル用）
 RUN mkdir -p /app/secrets
