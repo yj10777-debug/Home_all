@@ -32,6 +32,12 @@ RUN npx prisma generate
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
+# Playwright ブラウザをビルドステージでインストール
+# → builderは node_modules が完全に揃っているため npx が正しいバージョンを使う
+# → バイナリをrunnerにコピーすることでバージョン不一致を根本排除
+ENV PLAYWRIGHT_BROWSERS_PATH=/app/playwright-browsers
+RUN npx playwright install chromium chromium-headless-shell
+
 # ─── Stage 3: 本番実行 ─────────────────────────────
 FROM node:20-slim AS runner
 
@@ -90,11 +96,9 @@ COPY --from=builder /app/package.json ./package.json
 # tsx (TypeScriptランタイム) + node-cron を本番用にインストール
 RUN npm install --no-save tsx node-cron
 
-# Playwright ブラウザをインストール
-# PLAYWRIGHT_BROWSERS_PATH を固定して、インストール先とランタイムの参照先を一致させる
-# npx ではなくローカルの playwright バイナリを使うことでバージョンのズレを防ぐ
+# Playwright ブラウザバイナリをビルドステージからコピー（バージョン完全一致）
 ENV PLAYWRIGHT_BROWSERS_PATH=/app/playwright-browsers
-RUN node ./node_modules/playwright/cli.js install chromium chromium-headless-shell
+COPY --from=builder /app/playwright-browsers ./playwright-browsers
 
 # secrets ディレクトリ作成（セッションファイル用）
 RUN mkdir -p /app/secrets
