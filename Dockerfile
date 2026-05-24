@@ -94,7 +94,7 @@ RUN npm install --no-save tsx node-cron
 # PLAYWRIGHT_BROWSERS_PATH を固定して、インストール先とランタイムの参照先を一致させる
 # npx ではなくローカルの playwright バイナリを使うことでバージョンのズレを防ぐ
 ENV PLAYWRIGHT_BROWSERS_PATH=/app/playwright-browsers
-RUN ./node_modules/.bin/playwright install chromium chromium-headless-shell
+RUN node ./node_modules/playwright/cli.js install chromium chromium-headless-shell
 
 # secrets ディレクトリ作成（セッションファイル用）
 RUN mkdir -p /app/secrets
