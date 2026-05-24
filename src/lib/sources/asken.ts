@@ -25,6 +25,33 @@ async function saveScrapingLog(dateStr: string, status: string, message: string,
 }
 
 /**
+ * stdout から `{"date": ...}` の JSON ブロックを抽出する。
+ * run.ts は pretty-print 出力 + 末尾に `Saved: ...` を出すため、
+ * 単純な regex では境界が取れない。ブレースカウントで top-level のみ拾う。
+ */
+function extractDateJsonBlock(text: string): string | null {
+  const startMatch = text.match(/\{\s*"date"\s*:/);
+  if (!startMatch || startMatch.index === undefined) return null;
+  const start = startMatch.index;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (escape) { escape = false; continue; }
+    if (ch === "\\") { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
+/**
  * あすけんスクレイピングを子プロセスで実行し、1日分のデータを返す
  * @param dateStr YYYY-MM-DD
  * @param userId 未指定時は "default"。認証情報は getAskenCredentials(userId) で取得（現状は env のみ）
@@ -68,11 +95,9 @@ export async function fetchNutritionForDate(
         return;
       }
       try {
-        // dotenv のログ出力が stdout に混入する場合があるため
-        // "date" キーを持つ JSON ブロックを明示的に検索する
-        const jsonMatch = stdout.match(/(\{"date"[\s\S]*\})\s*$/);
-        if (jsonMatch) {
-          const data = JSON.parse(jsonMatch[0]) as NutritionDayResult;
+        const jsonText = extractDateJsonBlock(stdout);
+        if (jsonText) {
+          const data = JSON.parse(jsonText) as NutritionDayResult;
           await saveScrapingLog(dateStr, "ok", `${data.items?.length ?? 0}件取得`);
           resolve({ ok: true, data });
         } else {
