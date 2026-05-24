@@ -1,4 +1,8 @@
-import { chromium, BrowserContext } from 'playwright';
+import { config } from 'dotenv';
+config({ path: '.env.local' });
+config();
+
+import { chromium } from 'playwright';
 import fs from 'fs';
 import path from 'path';
 
@@ -43,8 +47,25 @@ export async function autoLogin(options?: { headless?: boolean }): Promise<strin
 
     if (!fs.existsSync(SECRETS_DIR)) fs.mkdirSync(SECRETS_DIR, { recursive: true });
 
-    const browser = await chromium.launch({ headless });
-    const context = await browser.newContext();
+    const browser = await chromium.launch({
+        headless,
+        args: [
+            '--disable-blink-features=AutomationControlled',
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+        ],
+    });
+    const context = await browser.newContext({
+        userAgent:
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36',
+        locale: 'ja-JP',
+        timezoneId: 'Asia/Tokyo',
+    });
+    // webdriver フラグを隠してBot検出を回避
+    await context.addInitScript(() => {
+        Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+    });
 
     try {
         const page = await context.newPage();
@@ -69,8 +90,14 @@ export async function autoLogin(options?: { headless?: boolean }): Promise<strin
 
         // ログインページにリダイレクトされた場合はエラー
         if (page.url().includes('/login')) {
+            // デバッグ用: ログイン失敗時のスクリーンショットを保存
+            await page.screenshot({ path: path.join(SECRETS_DIR, 'login-failed.png'), fullPage: true });
+            fs.writeFileSync(path.join(SECRETS_DIR, 'login-failed.html'), await page.content());
             throw new Error(`ログインに失敗しました。メールアドレスまたはパスワードを確認してください。（リダイレクト先: ${page.url()}）`);
         }
+
+        // デバッグ用: ログイン成功後のスクリーンショットを保存
+        await page.screenshot({ path: path.join(SECRETS_DIR, 'login-success.png'), fullPage: true });
 
         // セッション状態を保存
         await context.storageState({ path: STATE_FILE });

@@ -1,3 +1,8 @@
+import { config } from 'dotenv';
+// .env.local を自動ロード（npx tsx で直接実行した場合も環境変数を読み込む）
+config({ path: '.env.local' });
+config(); // .env も対象
+
 import { chromium, BrowserContext } from 'playwright';
 import path from 'path';
 import fs from 'fs';
@@ -75,8 +80,25 @@ async function run() {
         process.exit(1);
     }
 
-    let browser = await chromium.launch({ headless });
-    let context = await browser.newContext({ storageState: STATE_FILE });
+    const stealthArgs = [
+        '--disable-blink-features=AutomationControlled',
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+    ];
+    const stealthUA =
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36';
+
+    let browser = await chromium.launch({ headless, args: stealthArgs });
+    let context = await browser.newContext({
+        storageState: STATE_FILE,
+        userAgent: stealthUA,
+        locale: 'ja-JP',
+        timezoneId: 'Asia/Tokyo',
+    });
+    await context.addInitScript(() => {
+        Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+    });
 
     try {
         // セッションの有効性を実際に確認
@@ -90,9 +112,17 @@ async function run() {
 
             await autoLogin({ headless });
 
-            // 新しいセッションでブラウザを再起動
-            browser = await chromium.launch({ headless });
-            context = await browser.newContext({ storageState: STATE_FILE });
+            // 新しいセッションでブラウザを再起動（stealth設定を再適用）
+            browser = await chromium.launch({ headless, args: stealthArgs });
+            context = await browser.newContext({
+                storageState: STATE_FILE,
+                userAgent: stealthUA,
+                locale: 'ja-JP',
+                timezoneId: 'Asia/Tokyo',
+            });
+            await context.addInitScript(() => {
+                Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+            });
 
             // 再ログイン後も失敗する場合はエラー
             const retryValid = await verifySession(context, targetDate);

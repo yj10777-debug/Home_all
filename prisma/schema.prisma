@@ -139,6 +139,21 @@ model Integration {
   @@index([userId])
 }
 
+/// スクレイピング実行ログ（あすけん等のデータ取得履歴・エラー記録）
+model ScrapingLog {
+  id        String   @id @default(cuid())
+  date      String   // スクレイピング対象日 (YYYY-MM-DD)
+  source    String   // "asken" | "strong"
+  status    String   // "ok" | "error" | "skipped"
+  message   String?  // エラーメッセージ（短縮）
+  details   String?  // 詳細ログ（stderr全文等）
+  createdAt DateTime @default(now())
+
+  @@index([date])
+  @@index([status])
+  @@index([createdAt])
+}
+
 /// アプリ設定（目標・パーソナル）— 非推奨: ユーザー単位は UserConfig を使用
 model AppConfig {
   id          Int   @id @default(1)

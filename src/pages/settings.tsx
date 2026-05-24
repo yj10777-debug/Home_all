@@ -10,12 +10,25 @@ const THEME_OPTIONS: { id: ThemeId; label: string; description: string }[] = [
   { id: "ocean", label: "オーシャンブルー", description: "落ち着いた青系・信頼感" },
 ];
 
+type ScrapingLogEntry = {
+  id: string;
+  date: string;
+  source: string;
+  status: string;
+  message: string | null;
+  details: string | null;
+  createdAt: string;
+};
+
 export default function SettingsPage() {
   const [promptDraft, setPromptDraft] = useState("");
   const [promptLoading, setPromptLoading] = useState(true);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [theme, setTheme] = useState<ThemeId>("default");
   const [themeMounted, setThemeMounted] = useState(false);
+  const [scrapingLogs, setScrapingLogs] = useState<ScrapingLogEntry[]>([]);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [expandedLog, setExpandedLog] = useState<string | null>(null);
 
   useEffect(() => {
     setThemeMounted(true);
@@ -72,6 +85,15 @@ export default function SettingsPage() {
     setTheme(id);
   };
 
+  const loadLogs = () => {
+    setLogsLoading(true);
+    fetch("/api/sync/logs?limit=50")
+      .then((r) => r.json())
+      .then((data) => setScrapingLogs(data.logs ?? []))
+      .catch(() => {})
+      .finally(() => setLogsLoading(false));
+  };
+
   return (
     <>
       <Head><title>設定 - からだノート</title></Head>
@@ -102,6 +124,74 @@ export default function SettingsPage() {
                   </button>
                 ))}
               </div>
+            )}
+          </div>
+
+          {/* スクレイピングログ */}
+          <div className="bg-[var(--bg-card)] border border-[var(--border-card)] rounded-xl p-6 mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-lg font-bold text-[var(--text-primary)]">スクレイピングログ</h2>
+              <button
+                type="button"
+                onClick={loadLogs}
+                disabled={logsLoading}
+                className="px-3 py-1.5 text-xs font-medium rounded-lg border border-[var(--border-card)] text-[var(--text-secondary)] hover:bg-[var(--bg-card-hover)] disabled:opacity-50"
+              >
+                {logsLoading ? "読み込み中..." : "ログを表示"}
+              </button>
+            </div>
+            <p className="text-[var(--text-tertiary)] text-xs mb-4">あすけんのデータ取得履歴とエラーを確認できます。</p>
+            {scrapingLogs.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-[var(--border-card)] text-[var(--text-tertiary)]">
+                      <th className="text-left py-1.5 pr-3 font-medium">日付</th>
+                      <th className="text-left py-1.5 pr-3 font-medium">ソース</th>
+                      <th className="text-left py-1.5 pr-3 font-medium">状態</th>
+                      <th className="text-left py-1.5 pr-3 font-medium">メッセージ</th>
+                      <th className="text-left py-1.5 font-medium">実行時刻</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {scrapingLogs.map((log) => (
+                      <>
+                        <tr
+                          key={log.id}
+                          className="border-b border-[var(--border-card)] hover:bg-[var(--bg-card-hover)] cursor-pointer"
+                          onClick={() => setExpandedLog(expandedLog === log.id ? null : log.id)}
+                        >
+                          <td className="py-1.5 pr-3 font-mono text-[var(--text-primary)]">{log.date}</td>
+                          <td className="py-1.5 pr-3 text-[var(--text-secondary)]">{log.source}</td>
+                          <td className="py-1.5 pr-3">
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                              log.status === "ok"
+                                ? "bg-green-500/20 text-green-400"
+                                : log.status === "skipped"
+                                ? "bg-yellow-500/20 text-yellow-400"
+                                : "bg-red-500/20 text-red-400"
+                            }`}>
+                              {log.status}
+                            </span>
+                          </td>
+                          <td className="py-1.5 pr-3 text-[var(--text-secondary)] max-w-[240px] truncate">{log.message ?? "—"}</td>
+                          <td className="py-1.5 text-[var(--text-tertiary)] whitespace-nowrap">{new Date(log.createdAt).toLocaleString("ja-JP")}</td>
+                        </tr>
+                        {expandedLog === log.id && log.details && (
+                          <tr key={`${log.id}-detail`} className="bg-[var(--bg-input)]">
+                            <td colSpan={5} className="py-2 px-3">
+                              <pre className="text-[10px] text-[var(--text-secondary)] whitespace-pre-wrap break-all max-h-48 overflow-y-auto">{log.details}</pre>
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {scrapingLogs.length === 0 && !logsLoading && (
+              <p className="text-[var(--text-tertiary)] text-xs">「ログを表示」を押すと直近50件を表示します。</p>
             )}
           </div>
 

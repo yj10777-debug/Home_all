@@ -8,9 +8,21 @@ import path from "path";
 import { spawn } from "child_process";
 import { getAskenCredentials } from "./credentials";
 import type { NutritionDayResult, FetchNutritionResult } from "./types";
+import { prisma } from "../prisma";
 
 const SECRETS_DIR = path.join(process.cwd(), "secrets");
 const ASKEN_STATE_FILE = path.join(SECRETS_DIR, "asken-state.json");
+
+/** ScrapingLog テーブルにログを保存（失敗しても本処理は継続） */
+async function saveScrapingLog(dateStr: string, status: string, message: string, details?: string) {
+  try {
+    await prisma.scrapingLog.create({
+      data: { date: dateStr, source: "asken", status, message, details },
+    });
+  } catch (e) {
+    console.warn("ScrapingLog 保存失敗:", e);
+  }
+}
 
 /**
  * あすけんスクレイピングを子プロセスで実行し、1日分のデータを返す
@@ -24,7 +36,9 @@ export async function fetchNutritionForDate(
   const credentials = await getAskenCredentials(userId ?? "default");
   if (!credentials) {
     if (!fs.existsSync(ASKEN_STATE_FILE)) {
-      return { ok: false, error: "ASKEN_EMAIL / ASKEN_PASSWORD が未設定で、asken-state.json もありません。" };
+      const msg = "ASKEN_EMAIL / ASKEN_PASSWORD が未設定で、asken-state.json もありません。";
+      await saveScrapingLog(dateStr, "error", msg);
+      return { ok: false, error: msg };
     }
   }
 
@@ -45,26 +59,39 @@ export async function fetchNutritionForDate(
     let stderr = "";
     proc.stdout?.on("data", (d) => { stdout += d.toString(); });
     proc.stderr?.on("data", (d) => { stderr += d.toString(); });
-    proc.on("close", (code) => {
+
+    proc.on("close", async (code) => {
       if (code !== 0) {
-        resolve({ ok: false, error: stderr.slice(0, 500) || `exit ${code}` });
+        const errorMsg = stderr.slice(0, 500) || `exit ${code}`;
+        await saveScrapingLog(dateStr, "error", errorMsg, stderr);
+        resolve({ ok: false, error: errorMsg });
         return;
       }
       try {
         const jsonMatch = stdout.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           const data = JSON.parse(jsonMatch[0]) as NutritionDayResult;
+          await saveScrapingLog(dateStr, "ok", `${data.items?.length ?? 0}件取得`);
           resolve({ ok: true, data });
         } else {
-          console.warn(`Asken ${dateStr}: stdout に JSON が見つかりません: ${stdout.slice(0, 200)}`);
+          const msg = `stdout に JSON が見つかりません: ${stdout.slice(0, 200)}`;
+          console.warn(`Asken ${dateStr}:`, msg);
+          await saveScrapingLog(dateStr, "error", msg, stdout.slice(0, 2000));
           resolve({ ok: true });
         }
       } catch (parseErr) {
-        console.warn(`Asken ${dateStr}: JSON パース失敗:`, parseErr, stdout.slice(0, 200));
+        const msg = `JSON パース失敗: ${String(parseErr)}`;
+        console.warn(`Asken ${dateStr}:`, msg, stdout.slice(0, 200));
+        await saveScrapingLog(dateStr, "error", msg, stdout.slice(0, 2000));
         resolve({ ok: true });
       }
     });
-    proc.on("error", (e) => resolve({ ok: false, error: String(e) }));
+
+    proc.on("error", async (e) => {
+      const msg = String(e);
+      await saveScrapingLog(dateStr, "error", msg);
+      resolve({ ok: false, error: msg });
+    });
   });
 }
 
