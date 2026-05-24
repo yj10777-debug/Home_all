@@ -68,7 +68,9 @@ export async function fetchNutritionForDate(
         return;
       }
       try {
-        const jsonMatch = stdout.match(/\{[\s\S]*\}/);
+        // dotenv のログ出力が stdout に混入する場合があるため
+        // "date" キーを持つ JSON ブロックを明示的に検索する
+        const jsonMatch = stdout.match(/(\{"date"[\s\S]*\})\s*$/);
         if (jsonMatch) {
           const data = JSON.parse(jsonMatch[0]) as NutritionDayResult;
           await saveScrapingLog(dateStr, "ok", `${data.items?.length ?? 0}件取得`);

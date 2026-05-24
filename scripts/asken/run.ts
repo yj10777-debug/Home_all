@@ -1,7 +1,7 @@
 import { config } from 'dotenv';
 // .env.local を自動ロード（npx tsx で直接実行した場合も環境変数を読み込む）
-config({ path: '.env.local' });
-config(); // .env も対象
+config({ path: '.env.local', quiet: true });
+config({ quiet: true }); // .env も対象
 
 import { chromium, BrowserContext } from 'playwright';
 import path from 'path';
