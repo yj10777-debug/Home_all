@@ -1,47 +1,25 @@
 /**
  * Google Drive API クライアント（OAuth 2.0 リフレッシュトークン方式）
- * googleapis パッケージを使わず、REST API を直接呼び出す軽量実装
+ * googleapis パッケージを使わず、REST API を直接呼び出す軽量実装。
+ * 認証部分は googleAuth.ts に共通化済み。
  */
 
-const TOKEN_URL = "https://oauth2.googleapis.com/token";
+import { getGoogleAccessToken, getGoogleOAuthConfig } from "./googleAuth";
+
 const DRIVE_API = "https://www.googleapis.com/drive/v3";
 
-/** 環境変数からOAuth設定を取得 */
-function getConfig() {
-  const clientId = process.env.GOOGLE_CLIENT_ID;
-  const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
+type DriveConfig = {
+  clientId: string;
+  clientSecret: string;
+  refreshToken: string;
+  folderId: string;
+};
+
+function getConfig(): DriveConfig | null {
+  const oauth = getGoogleOAuthConfig();
+  if (!oauth) return null;
   const folderId = process.env.GOOGLE_DRIVE_STRONG_FOLDER_ID;
-
-  if (!clientId || !clientSecret || !refreshToken) {
-    return null; // 未設定の場合はnull（スキップ用）
-  }
-  return { clientId, clientSecret, refreshToken, folderId: folderId || "" };
-}
-
-/** リフレッシュトークンからアクセストークンを取得 */
-async function getAccessToken(config: NonNullable<ReturnType<typeof getConfig>>): Promise<string> {
-  const res = await fetch(TOKEN_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      client_id: config.clientId,
-      client_secret: config.clientSecret,
-      refresh_token: config.refreshToken,
-      grant_type: "refresh_token",
-    }),
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    const hint = err.includes("invalid_grant") || err.includes("Token has been expired or revoked")
-      ? " → リフレッシュトークンが期限切れまたは無効です。プロジェクトで `npx tsx scripts/google-auth.ts` を実行して再認証し、表示された GOOGLE_REFRESH_TOKEN を .env に設定してください。"
-      : "";
-    throw new Error(`アクセストークン取得失敗: ${res.status} ${err}${hint}`);
-  }
-
-  const data = (await res.json()) as { access_token: string };
-  return data.access_token;
+  return { ...oauth, folderId: folderId || "" };
 }
 
 /** フォルダ内の .txt ファイル一覧を取得 */
@@ -87,7 +65,7 @@ export async function fetchStrongFilesFromDrive(): Promise<{ name: string; conte
     return null;
   }
 
-  const accessToken = await getAccessToken(config);
+  const accessToken = await getGoogleAccessToken(config);
   const files = await listTxtFiles(accessToken, config.folderId);
 
   if (files.length === 0) {

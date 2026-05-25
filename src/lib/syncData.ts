@@ -13,7 +13,8 @@ import {
   buildStrongData,
   parseStrongFiles,
 } from "./sources/strong";
-import type { NutritionDayResult } from "./sources/types";
+import { fetchHealthForDateRange } from "./sources/appleHealth";
+import type { HealthDayData, NutritionDayResult } from "./sources/types";
 import type { StrongDayData } from "./sources/types";
 
 // 既存 API（api/sync/strong 等）のため re-export
@@ -52,6 +53,7 @@ function daysAgo(dateStr: string, todayStr: string): number {
 export async function syncData(options?: { from?: string; to?: string; skipExistingPastDays?: number }): Promise<{
   askenCount: number;
   strongCount: number;
+  healthCount: number;
   dayCount: number;
   errors: string[];
 }> {
@@ -61,17 +63,39 @@ export async function syncData(options?: { from?: string; to?: string; skipExist
   const todayStr = getEffectiveTodayStr();
   const skipThreshold = options?.skipExistingPastDays ?? 0;
 
+  // あすけんは食事系のみを担当。歩数・運動カロリーは AppleWatch (Google Fit) 経由で上書きされる。
   const upsertAskenDay = async (date: string, data: NutritionDayResult) => {
     const payload = {
       askenItems: data.items as unknown as Prisma.InputJsonValue,
       askenNutrients: data.nutrients as unknown as Prisma.InputJsonValue,
-      steps: data.exercise?.steps ?? null,
-      exerciseCalories: data.exercise?.calories ?? null,
     };
     await prisma.dailyData.upsert({
       where: { date },
       update: payload,
       create: { date, ...payload },
+    });
+  };
+
+  // null は更新しない（取得失敗日の既往値を壊さないため）
+  const upsertHealthDay = async (date: string, data: HealthDayData) => {
+    const payload: Prisma.DailyDataUpdateInput = {
+      healthSyncedAt: new Date(),
+      healthRaw: (data.raw ?? null) as unknown as Prisma.InputJsonValue,
+    };
+    if (data.steps != null) payload.steps = data.steps;
+    if (data.activeCalories != null) payload.exerciseCalories = data.activeCalories;
+    if (data.totalCalories != null) payload.totalCalories = data.totalCalories;
+    if (data.restingHeartRate != null) payload.restingHeartRate = data.restingHeartRate;
+    if (data.avgHeartRate != null) payload.avgHeartRate = data.avgHeartRate;
+    if (data.sleepMinutes != null) payload.sleepMinutes = data.sleepMinutes;
+    if (data.distanceMeters != null) payload.distanceMeters = data.distanceMeters;
+    if (data.activeMinutes != null) payload.activeMinutes = data.activeMinutes;
+    if (data.weightKg != null) payload.weightKg = data.weightKg;
+
+    await prisma.dailyData.upsert({
+      where: { date },
+      update: payload,
+      create: { ...(payload as Prisma.DailyDataCreateInput), date },
     });
   };
 
@@ -139,6 +163,19 @@ export async function syncData(options?: { from?: string; to?: string; skipExist
     }
   }
 
+  // AppleWatch / Google Fit のヘルスケアデータ
+  let healthCount = 0;
+  const { data: healthMap, errors: healthErrors } = await fetchHealthForDateRange(dateRange);
+  errors.push(...healthErrors);
+  for (const [dateStr, healthData] of healthMap) {
+    try {
+      await upsertHealthDay(dateStr, healthData);
+      healthCount += 1;
+    } catch (e) {
+      errors.push(`DB保存 Health ${dateStr}: ${String(e)}`);
+    }
+  }
+
   for (const d of targetDates) {
     try {
       await prisma.dailyData.upsert({
@@ -153,5 +190,5 @@ export async function syncData(options?: { from?: string; to?: string; skipExist
 
   const dayCount = await prisma.dailyData.count();
 
-  return { askenCount, strongCount, dayCount, errors };
+  return { askenCount, strongCount, healthCount, dayCount, errors };
 }

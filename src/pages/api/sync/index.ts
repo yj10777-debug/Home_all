@@ -21,6 +21,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       success: true,
       askenCount: result.askenCount,
       strongCount: result.strongCount,
+      healthCount: result.healthCount,
       dayCount: result.dayCount,
       errors: result.errors,
     });

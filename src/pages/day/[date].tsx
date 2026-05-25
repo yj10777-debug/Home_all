@@ -21,6 +21,17 @@ type DayData = {
   asken?: { date?: string; items?: AskenItem[]; nutrients?: Record<string, Record<string, string>> };
   strong?: StrongData | null;
   hasHiking?: boolean;
+  // AppleWatch / Google Fit
+  steps?: number;
+  exerciseCalories?: number;
+  totalCalories?: number;
+  restingHeartRate?: number;
+  avgHeartRate?: number;
+  sleepMinutes?: number;
+  distanceMeters?: number;
+  activeMinutes?: number;
+  weightKg?: number;
+  healthSyncedAt?: string;
 };
 
 const GOAL_CALORIES = 2267;
@@ -84,7 +95,7 @@ export default function DayPage() {
       const json = await res.json();
       if (res.ok && json.success) {
         setSyncMessage(
-          `取得完了（${fmt(start)} 〜 ${fmt(end)}） — あすけん: ${json.askenCount}日 / 筋トレ: ${json.strongCount}日`
+          `取得完了（${fmt(start)} 〜 ${fmt(end)}） — あすけん: ${json.askenCount}日 / 筋トレ: ${json.strongCount}日 / 健康: ${json.healthCount ?? 0}日`
         );
         setSyncErrors(Array.isArray(json.errors) ? json.errors : []);
         // 取得結果を画面に反映するためこの日のデータを再取得
@@ -402,6 +413,114 @@ export default function DayPage() {
                 </button>
               </div>
             </div>
+
+            {/* 体の管理（AppleWatch / Google Fit） */}
+            {(data.steps != null ||
+              data.totalCalories != null ||
+              data.exerciseCalories != null ||
+              data.avgHeartRate != null ||
+              data.restingHeartRate != null ||
+              data.sleepMinutes != null ||
+              data.distanceMeters != null ||
+              data.activeMinutes != null ||
+              data.weightKg != null) && (
+              <div className="mt-8 bg-[var(--bg-card)] border border-[var(--border-card)] rounded-xl p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-[var(--accent-muted)] flex items-center justify-center">
+                      <span className="material-symbols-outlined text-[var(--primary)] text-xl">monitor_heart</span>
+                    </div>
+                    <h2 className="font-bold text-[var(--text-primary)] text-lg">体の管理</h2>
+                  </div>
+                  {data.healthSyncedAt && (
+                    <span className="text-[10px] text-[var(--text-tertiary)]">
+                      同期: {new Date(data.healthSyncedAt).toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  )}
+                </div>
+
+                {/* カロリー収支 */}
+                {data.totalCalories != null && (
+                  <div className="mb-4 bg-[var(--bg-page)] border border-[var(--border-card)] rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)]">カロリー収支</span>
+                      <span className={`text-lg font-black tabular-nums ${
+                        totalCalories - data.totalCalories > 0 ? "text-orange-400" :
+                        totalCalories - data.totalCalories < -300 ? "text-blue-400" :
+                        "text-[var(--primary)]"
+                      }`}>
+                        {totalCalories - data.totalCalories > 0 ? "+" : ""}
+                        {Math.round(totalCalories - data.totalCalories)} kcal
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 text-xs">
+                      <div>
+                        <p className="text-[var(--text-tertiary)]">摂取</p>
+                        <p className="font-bold text-[var(--text-primary)] tabular-nums">{totalCalories} kcal</p>
+                      </div>
+                      <div>
+                        <p className="text-[var(--text-tertiary)]">消費 (BMR + 活動)</p>
+                        <p className="font-bold text-[var(--text-primary)] tabular-nums">{Math.round(data.totalCalories)} kcal</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 指標グリッド */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {data.steps != null && (
+                    <div className="bg-[var(--bg-page)] rounded-lg p-3 text-center border border-[var(--border-card)]">
+                      <p className="text-xs text-[var(--text-tertiary)]">歩数</p>
+                      <p className="text-lg font-bold text-[var(--text-primary)] tabular-nums">{data.steps.toLocaleString()}</p>
+                    </div>
+                  )}
+                  {data.distanceMeters != null && (
+                    <div className="bg-[var(--bg-page)] rounded-lg p-3 text-center border border-[var(--border-card)]">
+                      <p className="text-xs text-[var(--text-tertiary)]">距離</p>
+                      <p className="text-lg font-bold text-[var(--text-primary)] tabular-nums">{(data.distanceMeters / 1000).toFixed(2)} km</p>
+                    </div>
+                  )}
+                  {data.exerciseCalories != null && (
+                    <div className="bg-[var(--bg-page)] rounded-lg p-3 text-center border border-[var(--border-card)]">
+                      <p className="text-xs text-[var(--text-tertiary)]">活動消費</p>
+                      <p className="text-lg font-bold text-[var(--text-primary)] tabular-nums">{Math.round(data.exerciseCalories)} kcal</p>
+                    </div>
+                  )}
+                  {data.activeMinutes != null && (
+                    <div className="bg-[var(--bg-page)] rounded-lg p-3 text-center border border-[var(--border-card)]">
+                      <p className="text-xs text-[var(--text-tertiary)]">活動時間</p>
+                      <p className="text-lg font-bold text-[var(--text-primary)] tabular-nums">{data.activeMinutes} 分</p>
+                    </div>
+                  )}
+                  {data.avgHeartRate != null && (
+                    <div className="bg-[var(--bg-page)] rounded-lg p-3 text-center border border-[var(--border-card)]">
+                      <p className="text-xs text-[var(--text-tertiary)]">平均心拍</p>
+                      <p className="text-lg font-bold text-[var(--text-primary)] tabular-nums">{data.avgHeartRate} <span className="text-xs font-medium text-[var(--text-tertiary)]">bpm</span></p>
+                    </div>
+                  )}
+                  {data.restingHeartRate != null && (
+                    <div className="bg-[var(--bg-page)] rounded-lg p-3 text-center border border-[var(--border-card)]">
+                      <p className="text-xs text-[var(--text-tertiary)]">安静時心拍</p>
+                      <p className="text-lg font-bold text-[var(--text-primary)] tabular-nums">{data.restingHeartRate} <span className="text-xs font-medium text-[var(--text-tertiary)]">bpm</span></p>
+                    </div>
+                  )}
+                  {data.sleepMinutes != null && (
+                    <div className="bg-[var(--bg-page)] rounded-lg p-3 text-center border border-[var(--border-card)]">
+                      <p className="text-xs text-[var(--text-tertiary)]">睡眠</p>
+                      <p className="text-lg font-bold text-[var(--text-primary)] tabular-nums">
+                        {Math.floor(data.sleepMinutes / 60)}<span className="text-xs font-medium text-[var(--text-tertiary)]">h</span> {data.sleepMinutes % 60}<span className="text-xs font-medium text-[var(--text-tertiary)]">m</span>
+                      </p>
+                    </div>
+                  )}
+                  {data.weightKg != null && (
+                    <div className="bg-[var(--bg-page)] rounded-lg p-3 text-center border border-[var(--border-card)]">
+                      <p className="text-xs text-[var(--text-tertiary)]">体重</p>
+                      <p className="text-lg font-bold text-[var(--text-primary)] tabular-nums">{data.weightKg.toFixed(1)} <span className="text-xs font-medium text-[var(--text-tertiary)]">kg</span></p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* 筋トレカード */}
             <div className="mt-8 bg-[var(--bg-card)] border border-[var(--border-card)] rounded-xl p-6">

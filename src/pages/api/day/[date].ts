@@ -104,6 +104,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     if (daily.steps != null) data.steps = daily.steps;
     if (daily.exerciseCalories != null) data.exerciseCalories = daily.exerciseCalories;
+    if (daily.totalCalories != null) data.totalCalories = daily.totalCalories;
+    if (daily.restingHeartRate != null) data.restingHeartRate = daily.restingHeartRate;
+    if (daily.avgHeartRate != null) data.avgHeartRate = daily.avgHeartRate;
+    if (daily.sleepMinutes != null) data.sleepMinutes = daily.sleepMinutes;
+    if (daily.distanceMeters != null) data.distanceMeters = daily.distanceMeters;
+    if (daily.activeMinutes != null) data.activeMinutes = daily.activeMinutes;
+    if (daily.weightKg != null) data.weightKg = daily.weightKg;
+    if (daily.healthSyncedAt != null) data.healthSyncedAt = daily.healthSyncedAt;
     data.hasHiking = !!daily.hasHiking;
 
     res.setHeader("Cache-Control", "no-store, max-age=0");

@@ -22,6 +22,7 @@ export default function Home() {
     const [hasPfcData, setHasPfcData] = useState(false);
     const [todaySteps, setTodaySteps] = useState<number | null>(null);
     const [todayExerciseCal, setTodayExerciseCal] = useState<number | null>(null);
+    const [todayTotalCalories, setTodayTotalCalories] = useState<number | null>(null);
     const [hasHiking, setHasHiking] = useState(false);
     const [hikingUpdating, setHikingUpdating] = useState(false);
 
@@ -32,7 +33,7 @@ export default function Home() {
     const [loading, setLoading] = useState(true);
     const [mounted, setMounted] = useState(false); // ハイドレーション対策: 日付表示はクライアントのみ
     const [syncing, setSyncing] = useState(false);
-    const [syncResult, setSyncResult] = useState<{ askenCount: number; strongCount: number; errors: string[] } | null>(null);
+    const [syncResult, setSyncResult] = useState<{ askenCount: number; strongCount: number; healthCount: number; errors: string[] } | null>(null);
     const [syncStatus, setSyncStatus] = useState<{ schedule: string; lastSync: { timestamp: string; askenCount: number; strongCount: number } | null } | null>(null);
 
     useEffect(() => {
@@ -67,6 +68,7 @@ export default function Home() {
                 setHasPfcData(!!(data.pfc && (data.pfc.protein > 0 || data.pfc.fat > 0 || data.pfc.carbs > 0)));
                 setTodaySteps(data.steps ?? null);
                 setTodayExerciseCal(data.exerciseCalories ?? null);
+                setTodayTotalCalories(data.totalCalories ?? null);
                 setHasHiking(!!data.hasHiking);
             }
 
@@ -113,12 +115,13 @@ export default function Home() {
             setSyncResult({
                 askenCount: data.askenCount ?? 0,
                 strongCount: data.strongCount ?? 0,
+                healthCount: data.healthCount ?? 0,
                 errors,
             });
             await fetchData();
         } catch (e) {
             console.error(e);
-            setSyncResult({ askenCount: 0, strongCount: 0, errors: ["通信エラー"] });
+            setSyncResult({ askenCount: 0, strongCount: 0, healthCount: 0, errors: ["通信エラー"] });
         } finally {
             setSyncing(false);
         }
@@ -204,7 +207,7 @@ export default function Home() {
             <main className="w-full px-4 md:px-6 lg:px-8 py-6 space-y-6">
                 <section aria-label="今日のサマリー">
                     <h2 className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-4 px-1">今日のサマリー</h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
                         <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border-card)] flex items-center gap-3">
                             <div className="relative w-14 h-14 flex-shrink-0">
                                 <svg className="w-full h-full transform -rotate-90" aria-hidden>
@@ -260,7 +263,7 @@ export default function Home() {
                                     <div>
                                         <p className="text-xl font-black text-[var(--text-primary)]">{todaySteps.toLocaleString()} <span className="text-sm font-medium text-[var(--text-tertiary)]">歩</span></p>
                                         {todayExerciseCal != null && todayExerciseCal > 0 ? (
-                                            <p className="text-xs text-[var(--primary)] font-medium mt-0.5">消費 {todayExerciseCal} kcal</p>
+                                            <p className="text-xs text-[var(--primary)] font-medium mt-0.5">活動消費 {Math.round(todayExerciseCal)} kcal</p>
                                         ) : null}
                                     </div>
                                 ) : (
@@ -269,6 +272,31 @@ export default function Home() {
                                     </div>
                                 )}
                             </div>
+                        </div>
+
+                        <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border-card)]">
+                            <p className="text-xs font-bold text-[var(--text-tertiary)] uppercase tracking-wider mb-1">カロリー収支</p>
+                            {todayTotalCalories != null ? (
+                                (() => {
+                                    const balance = Math.round(todayCalories - todayTotalCalories);
+                                    const color =
+                                        balance > 200 ? "text-orange-400" :
+                                        balance < -300 ? "text-blue-400" :
+                                        "text-[var(--primary)]";
+                                    return (
+                                        <div>
+                                            <p className={`text-xl font-black tabular-nums ${color}`}>
+                                                {balance > 0 ? "+" : ""}{balance} <span className="text-sm font-medium text-[var(--text-tertiary)]">kcal</span>
+                                            </p>
+                                            <p className="text-[10px] text-[var(--text-tertiary)] mt-0.5">
+                                                摂取 {todayCalories} / 消費 {Math.round(todayTotalCalories)}
+                                            </p>
+                                        </div>
+                                    );
+                                })()
+                            ) : (
+                                <p className="text-[var(--text-tertiary)] text-sm">—</p>
+                            )}
                         </div>
 
                         <div className="bg-[var(--bg-card)] rounded-xl p-4 border border-[var(--border-card)] flex flex-col">
@@ -314,7 +342,7 @@ export default function Home() {
                             )}
                             {syncResult && (
                                 <p className={`text-[10px] mt-1 ${syncResult.errors.length > 0 ? "text-amber-400" : "text-[var(--primary)]"}`}>
-                                    {syncResult.errors.length > 0 ? "エラーあり" : `あすけん ${syncResult.askenCount}日 / Strong ${syncResult.strongCount}日`}
+                                    {syncResult.errors.length > 0 ? "エラーあり" : `あすけん ${syncResult.askenCount} / Strong ${syncResult.strongCount} / 健康 ${syncResult.healthCount}`}
                                 </p>
                             )}
                         </div>

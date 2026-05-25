@@ -65,3 +65,29 @@ export interface INutritionSource {
 export interface ITrainingSource {
   fetchForDateRange(dates: Set<string>): Promise<FetchTrainingResult>;
 }
+
+/** 1日分のヘルスケアデータ（AppleWatch / Google Fit 由来） */
+export type HealthDayData = {
+  date: string;
+  steps?: number;
+  activeCalories?: number;
+  totalCalories?: number;
+  restingHeartRate?: number;
+  avgHeartRate?: number;
+  sleepMinutes?: number;
+  distanceMeters?: number;
+  activeMinutes?: number;
+  weightKg?: number;
+  raw?: unknown;
+};
+
+/** ヘルスケアデータ取得の戻り値（複数日） */
+export type FetchHealthResult = {
+  data: Map<string, HealthDayData>;
+  errors: string[];
+};
+
+/** ヘルスケアデータソース（Google Fit・将来の Health Auto Export 等）のインターフェース */
+export interface IHealthSource {
+  fetchForDateRange(dates: Set<string>): Promise<FetchHealthResult>;
+}

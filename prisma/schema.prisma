@@ -81,13 +81,31 @@ model DailyData {
   /// Strong 筋トレデータ (JSON)
   strongData     Json?  // { workouts: [...], totals: { ... } }
   
-  /// 歩数 (あすけんヘルスケア連携)
+  /// 歩数 (Google Fit / AppleWatch 由来)
   steps              Int?
-  /// 運動消費カロリー (kcal)
+  /// アクティブ消費カロリー kcal (Google Fit / AppleWatch)
   exerciseCalories   Float?
+  /// 総消費カロリー (BMR含む) kcal
+  totalCalories      Float?
+  /// 安静時心拍数 bpm
+  restingHeartRate   Int?
+  /// 平均心拍数 bpm
+  avgHeartRate       Int?
+  /// 睡眠時間 (分)
+  sleepMinutes       Int?
+  /// 移動距離 (m)
+  distanceMeters     Float?
+  /// 運動時間 (分)
+  activeMinutes      Int?
+  /// 体重 (kg)
+  weightKg           Float?
+  /// Google Fit dataset:aggregate の生レスポンス（デバッグ・将来拡張用）
+  healthRaw          Json?
+  /// 健康データを最後に同期した時刻
+  healthSyncedAt     DateTime?
   /// 登山したかどうか（ユーザー手動チェック）
   hasHiking          Boolean  @default(false)
-  
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
