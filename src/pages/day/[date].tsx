@@ -56,6 +56,57 @@ export default function DayPage() {
   const [evalError, setEvalError] = useState<string | null>(null);
   const [hikingUpdating, setHikingUpdating] = useState(false);
 
+  // この日と前3日分のリトライ取得用 state
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [syncErrors, setSyncErrors] = useState<string[]>([]);
+
+  /**
+   * この日 (X) と過去3日 (X-3) 〜 X の合計4日分のデータをサーバー側で再取得する。
+   * エラーで cron / 「今すぐ取得」が拾えなかった欠落日を手動で埋めるための機能。
+   */
+  const handleSync = async () => {
+    if (!date || typeof date !== "string" || syncing) return;
+    setSyncing(true);
+    setSyncMessage(null);
+    setSyncErrors([]);
+    try {
+      const [y, m, d] = date.split("-").map(Number);
+      const end = new Date(y, m - 1, d);
+      const start = new Date(end.getTime() - 3 * 86400000);
+      const fmt = (x: Date) =>
+        `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`;
+      const res = await fetch("/api/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ from: fmt(start), to: fmt(end) }),
+      });
+      const json = await res.json();
+      if (res.ok && json.success) {
+        setSyncMessage(
+          `取得完了（${fmt(start)} 〜 ${fmt(end)}） — あすけん: ${json.askenCount}日 / 筋トレ: ${json.strongCount}日`
+        );
+        setSyncErrors(Array.isArray(json.errors) ? json.errors : []);
+        // 取得結果を画面に反映するためこの日のデータを再取得
+        try {
+          const r = await fetch(`/api/day/${date}`, { cache: "no-store" });
+          if (r.ok) {
+            setData(await r.json());
+            setNotFound(false);
+          }
+        } catch {
+          /* 再取得失敗は無視（取得自体は成功している） */
+        }
+      } else {
+        setSyncErrors([json.error || `取得に失敗しました (HTTP ${res.status})`]);
+      }
+    } catch (e) {
+      setSyncErrors([e instanceof Error ? e.message : String(e)]);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   /** 登山チェックを切り替える */
   const handleToggleHiking = async () => {
     if (!date || typeof date !== "string" || hikingUpdating) return;
@@ -174,6 +225,50 @@ export default function DayPage() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6 pb-24">
+        {/* この日と前3日分を再取得（取得漏れリカバリ用） */}
+        <div className="bg-[var(--bg-card)] border border-[var(--border-card)] rounded-xl p-4 mb-6 flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <h3 className="text-sm font-bold text-[var(--text-primary)]">この日と前3日分を取得</h3>
+            <p className="text-xs text-[var(--text-tertiary)] mt-0.5">
+              エラーで取れなかった日を手動でリトライ（実行に30秒〜数分かかります）
+            </p>
+            {syncMessage && (
+              <p className="text-xs text-green-400 mt-2 break-words">{syncMessage}</p>
+            )}
+            {syncErrors.length > 0 && (
+              <div className="text-xs text-red-400 mt-2 space-y-1">
+                {syncErrors.slice(0, 3).map((er, i) => (
+                  <p key={i} className="break-words">⚠️ {er.length > 200 ? er.slice(0, 200) + "…" : er}</p>
+                ))}
+                {syncErrors.length > 3 && (
+                  <p className="text-[var(--text-tertiary)]">…他 {syncErrors.length - 3} 件</p>
+                )}
+              </div>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={handleSync}
+            disabled={syncing}
+            className="shrink-0 min-h-[44px] px-4 py-2 bg-[var(--primary)] text-[var(--btn-primary-text)] text-sm font-bold rounded-lg hover:bg-[var(--primary-hover)] disabled:opacity-50 transition-all active:scale-[0.98] flex items-center gap-2"
+          >
+            {syncing ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                <span>取得中…</span>
+              </>
+            ) : (
+              <>
+                <span aria-hidden>↻</span>
+                <span>3日分取得</span>
+              </>
+            )}
+          </button>
+        </div>
+
         {loading ? (
           <div className="space-y-6">
             <div className="h-64 bg-[var(--bg-card)] border border-[var(--border-card)] rounded-2xl animate-pulse" />
