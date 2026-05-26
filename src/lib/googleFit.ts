@@ -127,22 +127,64 @@ type FitSession = {
   startTimeMillis?: string;
   endTimeMillis?: string;
   activityType?: number;
+  application?: { packageName?: string };
 };
 type FitSessionsResponse = { session?: FitSession[] };
 
-/** Sessions API レスポンスから睡眠セッション合計分数を計算（テスト用に export） */
+/** 区間配列を開始順にソートしオーバーラップする部分をマージして総分数を返す */
+function mergeAndSumMinutes(intervals: Array<[number, number]>): number {
+  if (intervals.length === 0) return 0;
+  intervals.sort((a, b) => a[0] - b[0]);
+  const merged: Array<[number, number]> = [];
+  for (const cur of intervals) {
+    const last = merged[merged.length - 1];
+    if (last && cur[0] <= last[1]) {
+      last[1] = Math.max(last[1], cur[1]);
+    } else {
+      merged.push([cur[0], cur[1]]);
+    }
+  }
+  const totalMs = merged.reduce((sum, [s, e]) => sum + (e - s), 0);
+  return Math.round(totalMs / 60000);
+}
+
+/**
+ * Sessions API レスポンスから睡眠セッション合計分数を計算（テスト用に export）
+ *
+ * 同じ夜の睡眠が複数アプリ（Apple workout, AutoSleep, Google純正など）から
+ * 報告されることがあるが、各アプリで定義が異なる:
+ *  - Apple workout: 実睡眠時間（推定）
+ *  - AutoSleep など: 在床時間（消灯〜起床）— Apple より長くなる傾向
+ *
+ * 重複加算を避けつつ「在床時間」で水増しされないよう、
+ * **アプリ別に区間をマージして総分数を計算 → アプリ間で最小値を採用**する。
+ * これにより最も保守的（タイトな）睡眠時間が選ばれる。
+ */
 export function parseSleepSessions(data: FitSessionsResponse): number | undefined {
   const sessions = data.session ?? [];
   if (sessions.length === 0) return undefined;
-  let totalMs = 0;
+
+  // アプリパッケージ別に区間をグループ化
+  const byApp = new Map<string, Array<[number, number]>>();
   for (const s of sessions) {
     if (s.activityType !== ACTIVITY_TYPE_SLEEP) continue;
     const ss = s.startTimeMillis ? Number(s.startTimeMillis) : 0;
     const se = s.endTimeMillis ? Number(s.endTimeMillis) : 0;
-    if (se > ss) totalMs += se - ss;
+    if (se <= ss) continue;
+    const app = s.application?.packageName ?? "_unknown";
+    if (!byApp.has(app)) byApp.set(app, []);
+    byApp.get(app)!.push([ss, se]);
   }
-  if (totalMs === 0) return undefined;
-  return Math.round(totalMs / 60000);
+  if (byApp.size === 0) return undefined;
+
+  // 各アプリの合計分数を計算 → 最小値を採用（最も保守的）
+  let minMinutes: number | undefined;
+  for (const intervals of byApp.values()) {
+    const minutes = mergeAndSumMinutes(intervals);
+    if (minutes === 0) continue;
+    if (minMinutes === undefined || minutes < minMinutes) minMinutes = minutes;
+  }
+  return minMinutes;
 }
 
 /** Sessions API で睡眠セッション合計分数を取得（失敗時 undefined） */
@@ -242,9 +284,11 @@ async function fetchOneDay(accessToken: string, date: string): Promise<FitDailyM
   const metrics = parseFitResponse(date, data);
 
   // 補助APIで sleep / resting_heart_rate を並列取得（失敗してもメイン結果は壊さない）
-  // 睡眠日は前日21:00〜当日11:00 程度を Sessions API で見る必要がある（就寝が日付をまたぐため）
-  const sleepWindowStartMs = startMs - 3 * 60 * 60 * 1000; // 当日 -3h
-  const sleepWindowEndMs = endMs;                            // 当日終了まで
+  // 「当日の睡眠」= 前日 21:00 〜 当日 12:00 に終了したセッションと定義する。
+  // 当日深夜〜朝の起床までを含み、当夜の入眠（24時以降）は翌日の睡眠としてカウント。
+  // これにより同じ日に「前夜の睡眠＋当夜の入眠」が両方カウントされる二重計上を防ぐ。
+  const sleepWindowStartMs = startMs - 3 * 60 * 60 * 1000; // 前日 21:00
+  const sleepWindowEndMs = startMs + 12 * 60 * 60 * 1000;  // 当日 12:00
   const [sessionSleep, restingHR] = await Promise.all([
     fetchSleepMinutesFromSessions(accessToken, sleepWindowStartMs, sleepWindowEndMs),
     fetchRestingHeartRate(accessToken, startMs, endMs),

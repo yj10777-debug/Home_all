@@ -134,27 +134,18 @@ describe("parseSleepSessions", () => {
           activityType: 72,
           startTimeMillis: "0",
           endTimeMillis: String(7 * HOUR_MS), // 7時間
+          application: { packageName: "com.apple.workout" },
         },
       ],
     });
     expect(result).toBe(7 * 60); // 420分
   });
 
-  it("複数セッション(分割睡眠)も合計する", () => {
-    const result = parseSleepSessions({
-      session: [
-        { activityType: 72, startTimeMillis: "0", endTimeMillis: String(5 * HOUR_MS) },
-        { activityType: 72, startTimeMillis: String(6 * HOUR_MS), endTimeMillis: String(8 * HOUR_MS) },
-      ],
-    });
-    expect(result).toBe(7 * 60); // 5h + 2h = 7h
-  });
-
   it("activityType が 72 以外は除外する", () => {
     const result = parseSleepSessions({
       session: [
         { activityType: 7, startTimeMillis: "0", endTimeMillis: String(HOUR_MS) }, // walking
-        { activityType: 72, startTimeMillis: String(HOUR_MS), endTimeMillis: String(8 * HOUR_MS) }, // 7h sleep
+        { activityType: 72, startTimeMillis: String(HOUR_MS), endTimeMillis: String(8 * HOUR_MS), application: { packageName: "com.apple.workout" } },
       ],
     });
     expect(result).toBe(7 * 60);
@@ -163,11 +154,57 @@ describe("parseSleepSessions", () => {
   it("start/end 不正なセッションは除外する", () => {
     const result = parseSleepSessions({
       session: [
-        { activityType: 72, startTimeMillis: "100", endTimeMillis: "50" }, // 逆転
-        { activityType: 72 },                                              // 欠損
-        { activityType: 72, startTimeMillis: "0", endTimeMillis: String(6 * HOUR_MS) },
+        { activityType: 72, startTimeMillis: "100", endTimeMillis: "50", application: { packageName: "com.apple.workout" } }, // 逆転
+        { activityType: 72, application: { packageName: "com.apple.workout" } },                                              // 欠損
+        { activityType: 72, startTimeMillis: "0", endTimeMillis: String(6 * HOUR_MS), application: { packageName: "com.apple.workout" } },
       ],
     });
     expect(result).toBe(6 * 60);
+  });
+
+  it("実睡眠と在床時間が混在する場合は短い方（実睡眠）を採用する", () => {
+    const result = parseSleepSessions({
+      session: [
+        // Apple純正: 実睡眠 7時間
+        { activityType: 72, startTimeMillis: String(HOUR_MS), endTimeMillis: String(8 * HOUR_MS), application: { packageName: "com.apple.workout" } },
+        // AutoSleep: 在床時間 11時間
+        { activityType: 72, startTimeMillis: "0", endTimeMillis: String(11 * HOUR_MS), application: { packageName: "com.tantsissa.autosleep" } },
+      ],
+    });
+    expect(result).toBe(7 * 60); // 最小（実睡眠）が採用される
+  });
+
+  it("同一アプリ内での重複（分割報告）はオーバーラップマージで加算しない", () => {
+    const result = parseSleepSessions({
+      session: [
+        // AutoSleep が同じ範囲を2回報告
+        { activityType: 72, startTimeMillis: "0", endTimeMillis: String(11 * HOUR_MS), application: { packageName: "com.tantsissa.autosleep" } },
+        { activityType: 72, startTimeMillis: "0", endTimeMillis: String(11 * HOUR_MS), application: { packageName: "com.tantsissa.autosleep" } },
+      ],
+    });
+    expect(result).toBe(11 * 60); // 重複加算しないので 11h のみ
+  });
+
+  it("同一アプリの離れた区間（昼寝+夜の睡眠）は両方加算", () => {
+    const result = parseSleepSessions({
+      session: [
+        // 昼寝 12:00 ~ 13:00
+        { activityType: 72, startTimeMillis: String(12 * HOUR_MS), endTimeMillis: String(13 * HOUR_MS), application: { packageName: "com.apple.workout" } },
+        // 夜の睡眠 23:00 ~ 翌7:00
+        { activityType: 72, startTimeMillis: String(23 * HOUR_MS), endTimeMillis: String(31 * HOUR_MS), application: { packageName: "com.apple.workout" } },
+      ],
+    });
+    // 昼寝1h + 夜睡眠8h = 9時間 = 540分
+    expect(result).toBe(9 * 60);
+  });
+
+  it("アプリ情報が無いセッションも一つのグループとして扱う", () => {
+    const result = parseSleepSessions({
+      session: [
+        { activityType: 72, startTimeMillis: "0", endTimeMillis: String(7 * HOUR_MS) },
+        { activityType: 72, startTimeMillis: "0", endTimeMillis: String(8 * HOUR_MS) },
+      ],
+    });
+    expect(result).toBe(8 * 60); // 同じ _unknown グループ内でマージ → 8h
   });
 });

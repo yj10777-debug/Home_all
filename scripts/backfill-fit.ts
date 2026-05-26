@@ -8,6 +8,8 @@
  *   npx tsx scripts/backfill-fit.ts                 # 過去90日 (today-89 〜 today)
  *   npx tsx scripts/backfill-fit.ts 2026-03-01       # 指定日 〜 today
  *   npx tsx scripts/backfill-fit.ts 2026-03-01 2026-04-30  # 指定範囲
+ *   npx tsx scripts/backfill-fit.ts --force          # 既に同期済みの日も強制再取得
+ *   npx tsx scripts/backfill-fit.ts 2026-05-20 2026-05-26 --force
  */
 
 import { config } from 'dotenv';
@@ -59,7 +61,9 @@ async function upsertHealthDay(date: string, data: HealthDayData) {
 }
 
 async function main() {
-  const args = process.argv.slice(2);
+  const rawArgs = process.argv.slice(2);
+  const force = rawArgs.includes('--force');
+  const args = rawArgs.filter((a) => a !== '--force');
   const todayStr = formatDateJst(getEffectiveToday());
 
   let from: string;
@@ -87,17 +91,22 @@ async function main() {
   }
 
   const dates = dateRange(from, to);
-  console.log(`Google Fit バックフィル: ${from} 〜 ${to} (${dates.length}日)`);
+  console.log(`Google Fit バックフィル: ${from} 〜 ${to} (${dates.length}日)${force ? ' [--force]' : ''}`);
 
-  // 既存データを事前取得して進捗判断（既に同期済みの日は再取得しない）
-  const existing = await prisma.dailyData.findMany({
-    where: { date: { in: dates } },
-    select: { date: true, healthSyncedAt: true },
-  });
-  const synced = new Set(existing.filter((r) => r.healthSyncedAt != null).map((r) => r.date));
-
-  const targetDates = dates.filter((d) => !synced.has(d));
-  console.log(`既に同期済み: ${synced.size}日 / 取得対象: ${targetDates.length}日\n`);
+  let targetDates: string[];
+  if (force) {
+    targetDates = dates;
+    console.log(`既同期日も含めて全日再取得: ${targetDates.length}日\n`);
+  } else {
+    // 既存データを事前取得して進捗判断（既に同期済みの日は再取得しない）
+    const existing = await prisma.dailyData.findMany({
+      where: { date: { in: dates } },
+      select: { date: true, healthSyncedAt: true },
+    });
+    const synced = new Set(existing.filter((r) => r.healthSyncedAt != null).map((r) => r.date));
+    targetDates = dates.filter((d) => !synced.has(d));
+    console.log(`既に同期済み: ${synced.size}日 / 取得対象: ${targetDates.length}日\n`);
+  }
 
   if (targetDates.length === 0) {
     console.log('全て同期済みです。何もしません。');
