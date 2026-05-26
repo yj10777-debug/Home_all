@@ -13,6 +13,12 @@
 import { getGoogleAccessToken, getGoogleOAuthConfig } from "./googleAuth";
 
 const FIT_AGGREGATE_URL = "https://www.googleapis.com/fitness/v1/users/me/dataset:aggregate";
+const FIT_SESSIONS_URL = "https://www.googleapis.com/fitness/v1/users/me/sessions";
+/** Google が提供する安静時心拍の派生データソース */
+const RESTING_HR_DATA_SOURCE_ID =
+  "derived:com.google.heart_rate.bpm:com.google.android.gms:resting_heart_rate<-merge_heart_rate_bpm";
+/** ActivityType 72 = SLEEP（Fit のセッション分類） */
+const ACTIVITY_TYPE_SLEEP = 72;
 
 /** Fit API で取得する日次健康データ */
 export type FitDailyMetrics = {
@@ -115,6 +121,86 @@ function sleepMinutesFromSegments(dataset: FitDataset | undefined): number | und
   return Math.round(totalNanos / 1_000_000 / 60_000); // nanos → ms → minutes
 }
 
+type FitSession = {
+  id?: string;
+  name?: string;
+  startTimeMillis?: string;
+  endTimeMillis?: string;
+  activityType?: number;
+};
+type FitSessionsResponse = { session?: FitSession[] };
+
+/** Sessions API レスポンスから睡眠セッション合計分数を計算（テスト用に export） */
+export function parseSleepSessions(data: FitSessionsResponse): number | undefined {
+  const sessions = data.session ?? [];
+  if (sessions.length === 0) return undefined;
+  let totalMs = 0;
+  for (const s of sessions) {
+    if (s.activityType !== ACTIVITY_TYPE_SLEEP) continue;
+    const ss = s.startTimeMillis ? Number(s.startTimeMillis) : 0;
+    const se = s.endTimeMillis ? Number(s.endTimeMillis) : 0;
+    if (se > ss) totalMs += se - ss;
+  }
+  if (totalMs === 0) return undefined;
+  return Math.round(totalMs / 60000);
+}
+
+/** Sessions API で睡眠セッション合計分数を取得（失敗時 undefined） */
+async function fetchSleepMinutesFromSessions(
+  accessToken: string,
+  startMs: number,
+  endMs: number,
+): Promise<number | undefined> {
+  const startISO = new Date(startMs).toISOString();
+  const endISO = new Date(endMs).toISOString();
+  const url = `${FIT_SESSIONS_URL}?startTime=${encodeURIComponent(startISO)}&endTime=${encodeURIComponent(endISO)}&activityType=${ACTIVITY_TYPE_SLEEP}`;
+
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  if (!res.ok) {
+    console.error(`Fit sessions 取得失敗: ${res.status} ${await res.text()}`);
+    return undefined;
+  }
+  const data = (await res.json()) as FitSessionsResponse;
+  return parseSleepSessions(data);
+}
+
+/** 安静時心拍を取得（派生データソース。失敗時 undefined） */
+async function fetchRestingHeartRate(
+  accessToken: string,
+  startMs: number,
+  endMs: number,
+): Promise<number | undefined> {
+  const body = {
+    aggregateBy: [
+      {
+        dataTypeName: "com.google.heart_rate.bpm",
+        dataSourceId: RESTING_HR_DATA_SOURCE_ID,
+      },
+    ],
+    bucketByTime: { durationMillis: DAY_MS },
+    startTimeMillis: startMs,
+    endTimeMillis: endMs,
+  };
+  const res = await fetch(FIT_AGGREGATE_URL, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    // 派生データソース未対応時は静かにスキップ
+    return undefined;
+  }
+  const data = (await res.json()) as FitAggregateResponse;
+  const ds = data.bucket?.[0]?.dataset?.[0];
+  const avg = avgFpPoints(ds);
+  return avg != null ? Math.round(avg) : undefined;
+}
+
 /**
  * 1日分の Fit 集計データを取得
  * dataSourceId を渡さない場合 Google が公開しているデフォルトの merged データソースを使う。
@@ -153,7 +239,21 @@ async function fetchOneDay(accessToken: string, date: string): Promise<FitDailyM
   }
 
   const data = (await res.json()) as FitAggregateResponse;
-  return parseFitResponse(date, data);
+  const metrics = parseFitResponse(date, data);
+
+  // 補助APIで sleep / resting_heart_rate を並列取得（失敗してもメイン結果は壊さない）
+  // 睡眠日は前日21:00〜当日11:00 程度を Sessions API で見る必要がある（就寝が日付をまたぐため）
+  const sleepWindowStartMs = startMs - 3 * 60 * 60 * 1000; // 当日 -3h
+  const sleepWindowEndMs = endMs;                            // 当日終了まで
+  const [sessionSleep, restingHR] = await Promise.all([
+    fetchSleepMinutesFromSessions(accessToken, sleepWindowStartMs, sleepWindowEndMs),
+    fetchRestingHeartRate(accessToken, startMs, endMs),
+  ]);
+  // Sessions API 由来があれば優先（segment 由来より精度が高いことが多い）
+  if (sessionSleep != null) metrics.sleepMinutes = sessionSleep;
+  if (restingHR != null) metrics.restingHeartRate = restingHR;
+
+  return metrics;
 }
 
 /** Fit レスポンスを FitDailyMetrics にパース（テストから直接呼べるよう export） */

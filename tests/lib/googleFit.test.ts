@@ -3,7 +3,7 @@
  * parseFitResponse: dataset:aggregate のレスポンス JSON → FitDailyMetrics の変換ロジックを検証
  */
 
-import { parseFitResponse } from "@/lib/googleFit";
+import { parseFitResponse, parseSleepSessions } from "@/lib/googleFit";
 
 describe("parseFitResponse", () => {
   it("空レスポンスでも全フィールド undefined のオブジェクトを返す", () => {
@@ -115,5 +115,59 @@ describe("parseFitResponse", () => {
     const result = parseFitResponse("2026-05-24", {});
     expect(result.steps).toBeUndefined();
     expect(result.totalCalories).toBeUndefined();
+  });
+});
+
+describe("parseSleepSessions", () => {
+  // 1時間 = 3,600,000 ms
+  const HOUR_MS = 3_600_000;
+
+  it("セッションなしは undefined", () => {
+    expect(parseSleepSessions({})).toBeUndefined();
+    expect(parseSleepSessions({ session: [] })).toBeUndefined();
+  });
+
+  it("activityType=72 の合計分数を計算する", () => {
+    const result = parseSleepSessions({
+      session: [
+        {
+          activityType: 72,
+          startTimeMillis: "0",
+          endTimeMillis: String(7 * HOUR_MS), // 7時間
+        },
+      ],
+    });
+    expect(result).toBe(7 * 60); // 420分
+  });
+
+  it("複数セッション(分割睡眠)も合計する", () => {
+    const result = parseSleepSessions({
+      session: [
+        { activityType: 72, startTimeMillis: "0", endTimeMillis: String(5 * HOUR_MS) },
+        { activityType: 72, startTimeMillis: String(6 * HOUR_MS), endTimeMillis: String(8 * HOUR_MS) },
+      ],
+    });
+    expect(result).toBe(7 * 60); // 5h + 2h = 7h
+  });
+
+  it("activityType が 72 以外は除外する", () => {
+    const result = parseSleepSessions({
+      session: [
+        { activityType: 7, startTimeMillis: "0", endTimeMillis: String(HOUR_MS) }, // walking
+        { activityType: 72, startTimeMillis: String(HOUR_MS), endTimeMillis: String(8 * HOUR_MS) }, // 7h sleep
+      ],
+    });
+    expect(result).toBe(7 * 60);
+  });
+
+  it("start/end 不正なセッションは除外する", () => {
+    const result = parseSleepSessions({
+      session: [
+        { activityType: 72, startTimeMillis: "100", endTimeMillis: "50" }, // 逆転
+        { activityType: 72 },                                              // 欠損
+        { activityType: 72, startTimeMillis: "0", endTimeMillis: String(6 * HOUR_MS) },
+      ],
+    });
+    expect(result).toBe(6 * 60);
   });
 });

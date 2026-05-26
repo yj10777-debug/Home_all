@@ -66,7 +66,7 @@ describe("generateDailyPrompt", () => {
     expect(prompt).toContain("300 kcal");
     expect(prompt).toContain("パン");
     expect(prompt).toContain("たんぱく質: 10g");
-    expect(prompt).toContain("活動量（10点）");
+    expect(prompt).toContain("評価スコアモデル");
   });
 
   it("筋トレデータがある場合はプロンプトに含まれる", async () => {
@@ -128,7 +128,7 @@ describe("generateDailyPrompt", () => {
     const prompt = await generateDailyPrompt("2026-02-11");
 
     expect(prompt).toContain("合計カロリー: 886 kcal");
-    expect(prompt).toContain("間食 386 kcal を含む");
+    expect(prompt).toContain("うち間食 386 kcal");
     expect(prompt).toContain("クッキー");
     expect(prompt).toContain("アイス");
   });
@@ -178,8 +178,9 @@ describe("generateWeeklyPrompt", () => {
     const prompt = await generateWeeklyPrompt("2026-02-01");
 
     expect(prompt).toContain("データなし");
+    // 6日分の欠落データが、週間データセクションと確定スコアセクションの両方に出るので 6 * 2 = 12 件
     const datalessCount = (prompt.match(/データなし/g) || []).length;
-    expect(datalessCount).toBe(6);
+    expect(datalessCount).toBe(12);
   });
 });
 
@@ -193,6 +194,6 @@ describe("getGemSystemPrompt", () => {
     expect(prompt).toContain("パーソナルトレーナー");
     expect(prompt).toContain("評価スコアモデル");
     expect(prompt).toContain("P150g");
-    expect(prompt).toContain("100点満点");
+    expect(prompt).toContain("合計100点");
   });
 });

@@ -39,6 +39,14 @@ export type DayData = {
   steps: number | null;
   exerciseCalories: number | null;
   hasHiking?: boolean;
+  // AppleWatch / Google Fit 由来の健康指標（任意）
+  totalCalories?: number | null;
+  restingHeartRate?: number | null;
+  avgHeartRate?: number | null;
+  sleepMinutes?: number | null;
+  distanceMeters?: number | null;
+  activeMinutes?: number | null;
+  weightKg?: number | null;
 };
 
 /** PFC 合計値 */
@@ -67,6 +75,13 @@ async function loadDayData(dateStr: string): Promise<DayData | null> {
     steps: record.steps ?? null,
     exerciseCalories: record.exerciseCalories ?? null,
     hasHiking: record.hasHiking ?? false,
+    totalCalories: record.totalCalories ?? null,
+    restingHeartRate: record.restingHeartRate ?? null,
+    avgHeartRate: record.avgHeartRate ?? null,
+    sleepMinutes: record.sleepMinutes ?? null,
+    distanceMeters: record.distanceMeters ?? null,
+    activeMinutes: record.activeMinutes ?? null,
+    weightKg: record.weightKg ?? null,
   };
 }
 
@@ -221,13 +236,21 @@ export async function generateDailyPrompt(dateStr: string, trigger: "manual" | "
 
   const workLocationLabel = workLocation ?? "データなし";
   const exerciseCalories = dayData.exerciseCalories != null && dayData.exerciseCalories > 0 ? dayData.exerciseCalories : 0;
+  // AppleWatch 由来の総消費カロリー（BMR含む）があれば、推定消費よりこちらを優先（精度高い）
+  const measuredTotalExpenditure = dayData.totalCalories != null && dayData.totalCalories > 0 ? Math.round(dayData.totalCalories) : null;
   const estimatedExpenditure = goals.calories + exerciseCalories;
-  const calorieDiff = Math.round(totalCalories - estimatedExpenditure);
-  const proteinPerKg = ASSUMED_WEIGHT_KG > 0 ? (pfc.protein / ASSUMED_WEIGHT_KG).toFixed(2) : "不明";
+  const usedExpenditure = measuredTotalExpenditure ?? estimatedExpenditure;
+  const expenditureLabel = measuredTotalExpenditure != null
+    ? `${measuredTotalExpenditure} kcal（AppleWatch 実測の総消費）`
+    : `${estimatedExpenditure} kcal（目標 ${goals.calories} ＋ 運動消費 ${exerciseCalories}）`;
+  const calorieDiff = Math.round(totalCalories - usedExpenditure);
+  // 体重は AppleWatch/ヘルスケアで取れていればそれを優先
+  const effectiveWeightKg = dayData.weightKg != null && dayData.weightKg > 0 ? dayData.weightKg : ASSUMED_WEIGHT_KG;
+  const proteinPerKg = effectiveWeightKg > 0 ? (pfc.protein / effectiveWeightKg).toFixed(2) : "不明";
   const fatRatioPct = totalCalories > 0 ? Math.round((pfc.fat * 9 / totalCalories) * 100) : 0;
 
   // 確定スコア（アプリ側で確定計算。AIには再計算させず転記させる）
-  const sc = calculateDailyScore(dayData, ASSUMED_WEIGHT_KG, goals);
+  const sc = calculateDailyScore(dayData, effectiveWeightKg, goals);
   const unrecordedNote = sc.total === 0
     ? "\n※この日は食事・筋トレ・登山の記録がないため採点対象外（0点）。総評では責めず、まず記録を残すことを前向きに促すこと。"
     : "";
@@ -241,19 +264,35 @@ export async function generateDailyPrompt(dateStr: string, trigger: "manual" | "
 - 栄養バランス: ${sc.details.nutritionBalance.score}/5
 - 登山ボーナス: +${sc.details.climbingBonus.score}`;
 
+  // 体の状態セクション（AppleWatch/Google Fit 経由のデータ）
+  const bodyLines: string[] = [];
+  if (dayData.weightKg != null) bodyLines.push(`- 体重: ${dayData.weightKg.toFixed(1)} kg`);
+  if (dayData.sleepMinutes != null) {
+    const h = Math.floor(dayData.sleepMinutes / 60);
+    const m = dayData.sleepMinutes % 60;
+    bodyLines.push(`- 睡眠時間: ${h}時間${m}分（${(dayData.sleepMinutes / 60).toFixed(1)}h）`);
+  }
+  if (dayData.restingHeartRate != null) bodyLines.push(`- 安静時心拍数: ${dayData.restingHeartRate} bpm`);
+  if (dayData.avgHeartRate != null) bodyLines.push(`- 平均心拍数: ${dayData.avgHeartRate} bpm`);
+  if (dayData.activeMinutes != null) bodyLines.push(`- 活動時間: ${dayData.activeMinutes} 分`);
+  if (dayData.distanceMeters != null) bodyLines.push(`- 移動距離: ${(dayData.distanceMeters / 1000).toFixed(2)} km`);
+  const bodySection = bodyLines.length > 0
+    ? `\n## 体の状態（AppleWatch/ヘルスケア由来）\n${bodyLines.join("\n")}\n`
+    : "";
+
   return `以下のデータをもとに、システムプロンプトの「評価スコアモデル」に従って今日を採点し、良かった点を認めたうえで、残りの食事で何を食べるべきかを前向きに提案してください。
 
 ## 目標
 - カロリー: ${goals.calories} kcal/日（減量目的のため、推定消費に対し -300〜-500kcal が理想）
 - たんぱく質(P): ${goals.protein}g / 脂質(F): ${goals.fat}g / 炭水化物(C): ${goals.carbs}g
-- 体重: ${ASSUMED_WEIGHT_KG}kg（仮定）
+- 体重: ${effectiveWeightKg}kg${dayData.weightKg != null ? "（実測）" : "（仮定）"}
 
 ## 勤務形態
 - ${workLocationLabel}（出社＝通勤・外出あり、在宅＝平日在宅、休日＝土日。在宅日は歩数少なめ・活動量低めでも許容してよい）
 
 ## 今日の摂取状況 (${dateStr})
 - 合計カロリー: ${totalCalories} kcal${snackCalories > 0 ? `（うち間食 ${snackCalories} kcal。間食はPFC内訳不明のためカロリーのみ加算）` : ""}
-- 推定消費カロリー: ${estimatedExpenditure} kcal（目標 ${goals.calories} ＋ 運動消費 ${exerciseCalories}）
+- 消費カロリー: ${expenditureLabel}
 - カロリー収支: ${calorieDiff >= 0 ? "+" : ""}${calorieDiff} kcal（マイナス＝減量に有利）
 - たんぱく質: ${Math.round(pfc.protein)}g（${proteinPerKg}g/kg・目標まであと ${Math.max(0, Math.round(goals.protein - pfc.protein))}g）
 - 脂質: ${Math.round(pfc.fat)}g（目標まであと ${Math.max(0, Math.round(goals.fat - pfc.fat))}g・脂質エネルギー比 ${fatRatioPct}%）
@@ -271,7 +310,7 @@ ${workoutText}
 ## 運動・歩数
 ${dayData.steps != null ? `- 歩数: ${dayData.steps.toLocaleString()} 歩` : "- 歩数データなし"}
 ${exerciseCalories > 0 ? `- 運動消費カロリー: ${exerciseCalories} kcal` : "- 運動消費カロリーデータなし"}
-
+${bodySection}
 ${scoreBlock}
 
 ## 回答ルール
@@ -338,6 +377,18 @@ export async function generateWeeklyPrompt(sundayStr: string): Promise<string> {
   let totalVolume = 0;
   let weekTotalScore = 0;
   let scoredDays = 0;
+  // 健康指標（AppleWatch由来）の集計
+  let weekTotalSteps = 0;
+  let stepsDays = 0;
+  let weekTotalSleepMinutes = 0;
+  let sleepDays = 0;
+  let weekTotalRestingHR = 0;
+  let restingHRDays = 0;
+  let weekTotalActiveMinutes = 0;
+  let activeMinutesDays = 0;
+  let weekTotalCalBalance = 0;
+  let calBalanceDays = 0;
+  let latestWeightKg: number | null = null;
 
   for (const dateStr of dateStrs) {
     const record = recordMap.get(dateStr);
@@ -376,6 +427,13 @@ export async function generateWeeklyPrompt(sundayStr: string): Promise<string> {
       steps: record.steps ?? null,
       exerciseCalories: record.exerciseCalories ?? null,
       hasHiking: record.hasHiking ?? false,
+      totalCalories: record.totalCalories ?? null,
+      restingHeartRate: record.restingHeartRate ?? null,
+      avgHeartRate: record.avgHeartRate ?? null,
+      sleepMinutes: record.sleepMinutes ?? null,
+      distanceMeters: record.distanceMeters ?? null,
+      activeMinutes: record.activeMinutes ?? null,
+      weightKg: record.weightKg ?? null,
     };
 
     // 食事・筋トレ・登山のいずれも無い日は「記録なし」とし、採点・週平均から除外する
@@ -390,8 +448,20 @@ export async function generateWeeklyPrompt(sundayStr: string): Promise<string> {
       `${dateStr}: ${cal}kcal / P${Math.round(pfc.protein)}g F${Math.round(pfc.fat)}g C${Math.round(pfc.carbs)}g / ${workoutSummary}${hiking}`
     );
 
-    // 日別の確定スコア（アプリ側で確定計算）
-    const sc = calculateDailyScore(dayData, ASSUMED_WEIGHT_KG, goals);
+    // 健康指標を集計
+    if (record.steps != null) { weekTotalSteps += record.steps; stepsDays++; }
+    if (record.sleepMinutes != null) { weekTotalSleepMinutes += record.sleepMinutes; sleepDays++; }
+    if (record.restingHeartRate != null) { weekTotalRestingHR += record.restingHeartRate; restingHRDays++; }
+    if (record.activeMinutes != null) { weekTotalActiveMinutes += record.activeMinutes; activeMinutesDays++; }
+    if (record.totalCalories != null) {
+      weekTotalCalBalance += cal - record.totalCalories;
+      calBalanceDays++;
+    }
+    if (record.weightKg != null) latestWeightKg = record.weightKg;
+
+    // 日別の確定スコア（アプリ側で確定計算）。体重が取れていればそれを使う。
+    const effectiveWeight = record.weightKg ?? ASSUMED_WEIGHT_KG;
+    const sc = calculateDailyScore(dayData, effectiveWeight, goals);
     weekTotalScore += sc.total;
     scoredDays++;
     dailyScoreLines.push(`${dateStr}: ${sc.total}点`);
@@ -402,6 +472,22 @@ export async function generateWeeklyPrompt(sundayStr: string): Promise<string> {
   const avgFat = Math.round(weekTotalFat / 7);
   const avgCarbs = Math.round(weekTotalCarbs / 7);
   const avgScore = scoredDays > 0 ? Math.round(weekTotalScore / scoredDays) : 0;
+  const avgSteps = stepsDays > 0 ? Math.round(weekTotalSteps / stepsDays) : null;
+  const avgSleepHours = sleepDays > 0 ? (weekTotalSleepMinutes / sleepDays / 60).toFixed(1) : null;
+  const avgRestingHR = restingHRDays > 0 ? Math.round(weekTotalRestingHR / restingHRDays) : null;
+  const avgActiveMinutes = activeMinutesDays > 0 ? Math.round(weekTotalActiveMinutes / activeMinutesDays) : null;
+  const avgCalBalance = calBalanceDays > 0 ? Math.round(weekTotalCalBalance / calBalanceDays) : null;
+
+  const healthLines: string[] = [];
+  if (avgSteps != null) healthLines.push(`- 平均歩数: ${avgSteps.toLocaleString()} 歩/日`);
+  if (avgActiveMinutes != null) healthLines.push(`- 平均活動時間: ${avgActiveMinutes} 分/日`);
+  if (avgCalBalance != null) healthLines.push(`- 平均カロリー収支: ${avgCalBalance >= 0 ? "+" : ""}${avgCalBalance} kcal/日（実測総消費との差）`);
+  if (avgSleepHours != null) healthLines.push(`- 平均睡眠: ${avgSleepHours}時間`);
+  if (avgRestingHR != null) healthLines.push(`- 平均安静時心拍: ${avgRestingHR} bpm`);
+  if (latestWeightKg != null) healthLines.push(`- 直近体重: ${latestWeightKg.toFixed(1)} kg`);
+  const healthSection = healthLines.length > 0
+    ? `\n## 週間健康指標（AppleWatch由来）\n${healthLines.join("\n")}\n`
+    : "";
 
   const weeklyScoreBlock = `## 確定スコア（再計算せず、日別スコアと週平均にこの数値をそのまま転記すること）
 ${dailyScoreLines.join("\n")}
@@ -420,7 +506,7 @@ ${dailySummaries.join("\n")}
 - 平均カロリー: ${avgCalories} kcal/日（目標: ${goals.calories}）
 - 平均PFC: P${avgProtein}g / F${avgFat}g / C${avgCarbs}g
 - 筋トレ日数: ${workoutDays}日 / 合計ボリューム: ${totalVolume}kg
-
+${healthSection}
 ${weeklyScoreBlock}
 
 ## 回答ルール

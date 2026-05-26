@@ -125,9 +125,18 @@ function scoreStimulus(day: DayData): { score: number; label: string } {
   return { score, label: `${score}/20 (${parts.join('・')})` };
 }
 
-/** ④ 回復（15点）睡眠。データなしは満点扱い（減点しない） */
-function scoreRecovery(_day: DayData): { score: number; label: string } {
-  return { score: 15, label: '睡眠データなし (満点扱い)' };
+/** ④ 回復（15点）睡眠時間（分）。データなしは満点扱い（減点しない） */
+function scoreRecovery(day: DayData): { score: number; label: string } {
+  const minutes = day.sleepMinutes ?? null;
+  if (minutes == null) {
+    return { score: 15, label: '睡眠データなし (満点扱い)' };
+  }
+  const hours = minutes / 60;
+  if (hours >= 7) return { score: 15, label: `${hours.toFixed(1)}h・7時間以上 (15点)` };
+  if (hours >= 6.5) return { score: 13, label: `${hours.toFixed(1)}h・6.5-6.9 (13点)` };
+  if (hours >= 6.0) return { score: 11, label: `${hours.toFixed(1)}h・6.0-6.4 (11点)` };
+  if (hours >= 5.5) return { score: 8, label: `${hours.toFixed(1)}h・5.5-5.9 (8点)` };
+  return { score: 5, label: `${hours.toFixed(1)}h・5.5未満 (5点)` };
 }
 
 /** ⑤ 活動量（10点）歩数 */
