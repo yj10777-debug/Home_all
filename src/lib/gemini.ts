@@ -211,16 +211,46 @@ function formatWorkouts(strong?: StrongData | null): string {
   return lines.join("\n");
 }
 
+/** YYYY-MM-DD の前日を返す */
+function prevDateStr(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() - 1);
+  return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, "0")}-${String(dt.getUTCDate()).padStart(2, "0")}`;
+}
+
+/** 前日データから「疲労感の参考」セクションを構築 */
+function buildPreviousDaySection(prev: DayData | null): string {
+  if (!prev) return "";
+  const lines: string[] = [];
+  if (prev.sleepMinutes != null) {
+    const h = Math.floor(prev.sleepMinutes / 60);
+    const m = prev.sleepMinutes % 60;
+    lines.push(`- 睡眠時間: ${h}時間${m}分`);
+  }
+  if (prev.steps != null) lines.push(`- 歩数: ${prev.steps.toLocaleString()} 歩`);
+  if (prev.exerciseCalories != null && prev.exerciseCalories > 0) lines.push(`- 活動消費: ${Math.round(prev.exerciseCalories)} kcal`);
+  if (prev.totalCalories != null) lines.push(`- 総消費: ${Math.round(prev.totalCalories)} kcal`);
+  if (prev.restingHeartRate != null) lines.push(`- 安静時心拍: ${prev.restingHeartRate} bpm`);
+  if (prev.avgHeartRate != null) lines.push(`- 平均心拍: ${prev.avgHeartRate} bpm`);
+  const hadWorkout = (prev.strongData?.workouts?.length ?? 0) > 0;
+  lines.push(`- 筋トレ: ${hadWorkout ? "あり" : "なし"}${prev.hasHiking ? " / 登山あり⛰️" : ""}`);
+  if (lines.length === 0) return "";
+  return `\n## 前日 (${prev.date}) の状態（疲労感・回復度の参考）\n${lines.join("\n")}\n`;
+}
+
 /**
  * 指定日のデータをもとに Gem 貼り付け用の日次評価プロンプトを生成する
  * @param dateStr 対象日付 (YYYY-MM-DD)
- * @param _trigger 実行トリガー（後方互換のため引数は残すが、現状は cron/manual で挙動差なし）
+ * @param _trigger 実行トリガー（後方互換のため引数は残すが cron/manual で挙動差なし）
  * @returns プロンプトテキスト
  * @throws データが見つからない場合
  */
 export async function generateDailyPrompt(dateStr: string, _trigger: "manual" | "cron" = "cron"): Promise<string> {
-  const [dayData, goals, workLocation] = await Promise.all([
+  const prevStr = prevDateStr(dateStr);
+  const [dayData, prevDayData, goals, workLocation] = await Promise.all([
     loadDayData(dateStr),
+    loadDayData(prevStr),
     getGoals(),
     getWorkLocation(dateStr),
   ]);
@@ -280,7 +310,9 @@ export async function generateDailyPrompt(dateStr: string, _trigger: "manual" | 
     ? `\n## 体の状態（AppleWatch/ヘルスケア由来）\n${bodyLines.join("\n")}\n`
     : "";
 
-  return `以下のデータをもとに、システムプロンプトの「評価スコアモデル」に従って今日を採点し、良かった点を認めたうえで、残りの食事で何を食べるべきかを前向きに提案してください。
+  const prevSection = buildPreviousDaySection(prevDayData);
+
+  return `以下のデータをもとに、システムプロンプトの「評価スコアモデル」に従って今日を採点し、筋トレ・歩数・食事・前日の疲労感を加味した詳細な評価を返してください。
 
 ## 目標
 - カロリー: ${goals.calories} kcal/日（減量目的のため、推定消費に対し -300〜-500kcal が理想）
@@ -310,13 +342,15 @@ ${workoutText}
 ## 運動・歩数
 ${dayData.steps != null ? `- 歩数: ${dayData.steps.toLocaleString()} 歩` : "- 歩数データなし"}
 ${exerciseCalories > 0 ? `- 運動消費カロリー: ${exerciseCalories} kcal` : "- 運動消費カロリーデータなし"}
-${bodySection}
+${bodySection}${prevSection}
 ${scoreBlock}
 
 ## 回答ルール
 - 総合スコアと内訳は上記「確定スコア」の数値をそのまま転記する（自分で再計算・推定しない）。
-- あなたの役割は、確定スコアを踏まえた前向きな総評と、残りの食事で食べるべきメニュー3つ（各カロリー・PFC付き）の提案。
-- 出力形式はシステムプロンプトの指示に従う。`;
+- 当日の食事内容・筋トレ内容・歩数/活動量・体の状態を踏まえ、**前日の状態（睡眠・運動・筋トレ）から推測される疲労感**を加味して評価する。
+- 時刻ベースのアドバイス（「今から○○を食べる」「残りの食事で○○」など）は**禁止**。代わりに翌日に向けた次の一手を提案する。
+- 食事メニューの個別レコメンドは**禁止**（「これを食べると良い」などは出さない）。
+- 出力形式はシステムプロンプトの指示に従い、各評価項目について具体的な数値を引用しながら詳細に書く。`;
 }
 
 /**
@@ -503,7 +537,7 @@ export function getGemSystemPrompt(): string {
 ・「承知しました」等の挨拶や前置きは書かない。簡潔に、要点のみ。
 
 ■ 入力データ（渡されたもののみ使用。無い項目は満点扱いまたはスキップ）
-体重 / 摂取カロリー / 推定消費カロリー / カロリー収支 / たんぱく質 / 脂質 / 炭水化物 / 筋トレ内容 / 歩数 / 運動消費カロリー / 登山実施フラグ / 睡眠（任意）
+体重 / 摂取カロリー / 消費カロリー / カロリー収支 / たんぱく質 / 脂質 / 炭水化物 / 筋トレ内容 / 歩数 / 運動消費カロリー / 活動時間 / 平均心拍 / 安静時心拍 / 登山実施フラグ / 睡眠 / 前日の状態（睡眠・歩数・筋トレ・心拍）
 
 ────────────────────────
 評価スコアモデル（合計100点 ＋ 登山ボーナス）。各項目「満点に対しどれだけ取れたか」の加点方式で考える。
@@ -556,11 +590,33 @@ g/kg = たんぱく質摂取量 ÷ 体重（体重不明なら目標P${GOAL_PFC.
 ・日次・週次いずれも、プロンプトに「確定スコア」が与えられる。スコア（日次の総合・内訳、週次の日別・週平均）は必ずその数値をそのまま転記し、自分で再計算・推定しないこと。
 ・上記①〜⑥と登山ボーナスの基準は、総評で「なぜこの点なのか」を説明するための参考。点数自体は確定スコアに従う。
 
-■ 出力形式（この順）
-1. 総評（1行目から、挨拶なし）: まず良かった点を具体的に1つ以上認め、続いて次の一手を1〜2文。前向きなトーンで合計2〜3文。
-2. 空行のあと「総合スコア: XX点」（確定スコアの値）。
-3. 内訳: エネルギー: X/30 たんぱく質: X/20 刺激: X/20 回復: X/15 活動量: X/10 栄養バランス: X/5 登山ボーナス: +X（すべて確定スコアの値）
-4. 残りの食事で食べるべきメニューを3つ提案（各カロリー・PFC付き）。
-5. 週次まとめの場合は、与えられた確定スコアの日別スコア・週平均スコアをそのまま転記し、週全体の傾向・良かった日・次に伸ばせる日を具体的に。
+■ 出力形式（日次評価。この順番・見出しを厳守、挨拶なし）
+
+【総評】
+4〜6文で、まず良かった点を具体的に2つ以上認め、続いて課題と次の一手を書く。
+**前日の状態（睡眠時間・筋トレ有無・歩数）から疲労感を推測し**、当日の評価に必ず織り込む（例: 「前日が登山＋睡眠5時間と疲労が残る状態だったが…」「前日の刺激が無く回復十分な状態で本日の筋トレに臨めている」など）。
+
+【総合スコア】
+"総合スコア: XX点" を1行で（確定スコアの値）。
+
+【内訳】
+6項目を縦に並べる。各行は "項目名: X/満点 - 1文の評価コメント"。
+コメントには**入力データの具体的な数値**（カロリー収支◯kcal、たんぱく質◯g/kg、歩数◯歩 等）を引用すること。
+- エネルギー: X/30 - 摂取と消費のバランス、収支◯kcal の評価
+- たんぱく質: X/20 - ◯g/kg 達成度と筋量維持への寄与
+- 刺激: X/20 - 筋トレ内容/コンパウンド/セット数/登山の評価
+- 回復: X/15 - 睡眠時間◯時間と疲労状態の評価（前日の睡眠も加味）
+- 活動量: X/10 - 歩数◯歩・活動時間◯分の評価
+- 栄養バランス: X/5 - 脂質エネルギー比◯%の評価
+- 登山ボーナス: +X - 該当した内訳（登山+5/下半身+3/有酸素+2）
+
+【翌日に向けたアドバイス】
+3〜5個の箇条書きで、明日以降に取り組むと効果が高いことを具体的に書く。
+- 食事メニューの個別推奨や「○○を食べる」は禁止。代わりに「たんぱく質をあと◯g増やすため、◯◯系の食材を1食に加えると良い」のように方針レベルで助言する。
+- 「今すぐ」「残り時間で」「これから」など時刻ベースの表現は禁止。
+- 前日との比較（連日睡眠不足/連日高活動 等）があれば指摘。
+
+■ 週次まとめの場合
+日別スコア・週平均スコアを与えられた確定スコアからそのまま転記し、週全体の傾向・良かった日・次に伸ばせる日を具体的に書く。週間健康指標（平均歩数・睡眠・カロリー収支）に触れること。
 `;
 }
