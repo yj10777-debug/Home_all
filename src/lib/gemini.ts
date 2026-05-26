@@ -214,11 +214,11 @@ function formatWorkouts(strong?: StrongData | null): string {
 /**
  * 指定日のデータをもとに Gem 貼り付け用の日次評価プロンプトを生成する
  * @param dateStr 対象日付 (YYYY-MM-DD)
- * @param trigger 実行トリガー（"manual" の場合は現在時刻を考慮したアドバイスを追加）
+ * @param _trigger 実行トリガー（後方互換のため引数は残すが、現状は cron/manual で挙動差なし）
  * @returns プロンプトテキスト
  * @throws データが見つからない場合
  */
-export async function generateDailyPrompt(dateStr: string, trigger: "manual" | "cron" = "cron"): Promise<string> {
+export async function generateDailyPrompt(dateStr: string, _trigger: "manual" | "cron" = "cron"): Promise<string> {
   const [dayData, goals, workLocation] = await Promise.all([
     loadDayData(dateStr),
     getGoals(),
@@ -316,34 +316,7 @@ ${scoreBlock}
 ## 回答ルール
 - 総合スコアと内訳は上記「確定スコア」の数値をそのまま転記する（自分で再計算・推定しない）。
 - あなたの役割は、確定スコアを踏まえた前向きな総評と、残りの食事で食べるべきメニュー3つ（各カロリー・PFC付き）の提案。
-- 出力形式はシステムプロンプトの指示に従う。${trigger === "manual" ? generateManualAdviceSection() : ""}`;
-}
-
-/**
- * 手動実行時のみ付与する「今から寝るまでにできること」セクションを生成する
- * 現在時刻（JST）を基準に、残り時間で取れるアクションをAIに提案させる
- */
-function generateManualAdviceSection(): string {
-  const now = new Date();
-  // JST（UTC+9）に変換
-  const jstOffset = 9 * 60;
-  const utcMs = now.getTime() + now.getTimezoneOffset() * 60 * 1000;
-  const jst = new Date(utcMs + jstOffset * 60 * 1000);
-  const hours = jst.getHours();
-  const minutes = jst.getMinutes();
-  const timeStr = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
-
-  return `
-
-## 今から寝るまでにできること（現在 ${timeStr}）
-以下を踏まえて、今日の残り時間でスコアを上げるために取れる**具体的なアクション**を優先度順に提案してください。
-- 現在時刻は ${timeStr} です。就寝は24:00頃と仮定してください。
-- 減点されている項目を中心に、残り時間で現実的に改善できることに絞ること。
-- 食事の提案は具体的メニュー名・量・PFCを明記すること。
-- 筋トレ未実施なら、今からでも可能な短時間メニューを提案（遅い時間帯なら翌日への持ち越しでもOK）。
-- 歩数不足なら、散歩の時間・距離の目安を提案。
-- 既に達成済みの項目は「維持でOK」と簡潔に。
-- 3〜5個の箇条書きで、最も効果の高いものから順に。`;
+- 出力形式はシステムプロンプトの指示に従う。`;
 }
 
 /**
