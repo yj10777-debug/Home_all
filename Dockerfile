@@ -3,7 +3,7 @@ FROM node:20-slim AS deps
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     openssl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -17,7 +17,7 @@ FROM node:20-slim AS builder
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     openssl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -44,7 +44,9 @@ FROM node:20-slim AS runner
 WORKDIR /app
 
 # Playwright Chromium + 実行に必要なシステムライブラリ
-RUN apt-get update && apt-get install -y \
+# --no-install-recommends 必須: 推奨パッケージ込みだと Railway ビルダーのメモリ制限で
+# apt が SIGKILL される（2026-07-03 のビルド失敗: 終了コード137）
+RUN apt-get update && apt-get install -y --no-install-recommends \
     openssl \
     ca-certificates \
     fonts-liberation \
