@@ -2,23 +2,33 @@
  * AppleWatch ヘルスデータの抽象データソース
  *
  * 内部実装は環境変数 HEALTH_SOURCE で切り替え:
- *  - "fit"   (default): googleFit.ts → Google Fitness REST API
- *  - "drive":           healthAutoExport.ts → Google Drive 上の Health Auto Export JSON
+ *  - "fit":              googleFit.ts → Google Fitness REST API（終了済み。互換のため残置）
+ *  - "drive" (default):  healthAutoExport.ts → Google Drive 上の Health Auto Export JSON
  *
- * Google Fitness REST API は 2026-06-30 終了予定。終了後は HEALTH_SOURCE=drive に
- * 切り替える前提。上位レイヤ(syncData.ts)は本ファイルの interface だけを見る。
+ * Google Fitness REST API は 2026-06-30 に終了済み。HEALTH_SOURCE 未設定時は
+ * Drive の設定があれば自動的に drive を使う。上位レイヤ(syncData.ts)は
+ * 本ファイルの interface だけを見る。
  */
 
 import { fetchFitDailyAggregateRange } from "../googleFit";
 import { fetchHealthFromAutoExport, isHealthAutoExportConfigured } from "../healthAutoExport";
 import type { FetchHealthResult, HealthDayData } from "./types";
 
-/** 環境変数による実装選択。明示指定がなければ Fit、未設定の場合のみ Drive を試す */
+/** 環境変数による実装選択。明示指定が無ければ Drive 設定の有無で自動判定する */
 function selectSource(): "fit" | "drive" {
   const env = (process.env.HEALTH_SOURCE ?? "").toLowerCase();
   if (env === "drive") return "drive";
-  if (env === "fit") return "fit";
-  // 自動判定: Fit が使えれば fit, 設定が無く Drive が設定されていれば drive
+  if (env === "fit") {
+    console.warn(
+      "HEALTH_SOURCE=fit が指定されていますが、Google Fit API は 2026-06-30 に終了済みです。HEALTH_SOURCE=drive への移行を推奨します。"
+    );
+    return "fit";
+  }
+  // 自動判定: 設定が無く Drive が設定されていれば drive、それ以外は fit
+  if (isHealthAutoExportConfigured()) return "drive";
+  console.warn(
+    "Google Fit API は 2026-06-30 に終了済みです。HEALTH_SOURCE=drive への移行を推奨します。"
+  );
   return "fit";
 }
 

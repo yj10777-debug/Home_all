@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../lib/prisma";
+import { toClientErrorMessage } from "../../../lib/apiError";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
@@ -25,6 +26,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(200).json({ logs });
   } catch (e) {
     console.error("ScrapingLog 取得エラー:", e);
-    return res.status(500).json({ error: String(e) });
+    return res.status(500).json({ error: toClientErrorMessage(e) });
   }
 }

@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../lib/prisma";
+import { toClientErrorMessage } from "../../../lib/apiError";
 
 /**
  * GET /api/ai/history?date=YYYY-MM-DD&type=daily
@@ -67,6 +68,6 @@ export default async function handler(
     return res.status(200).json({ evaluations });
   } catch (e) {
     console.error("AI history error:", e);
-    return res.status(500).json({ error: String(e) });
+    return res.status(500).json({ error: toClientErrorMessage(e) });
   }
 }

@@ -46,3 +46,6 @@ next-env.d.ts
 # Asken Scraping
 secrets/
 scripts/asken/dist/
+
+# ルート直下の一時デバッグスクリプト
+/_*.cjs

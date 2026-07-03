@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { runDailyEvaluation, runWeeklyEvaluation } from "../../../lib/aiEvaluator";
 import { getEffectiveTodayStr } from "../../../lib/dateUtils";
 import { isGeminiConfigured } from "../../../lib/geminiClient";
+import { toClientErrorMessage } from "../../../lib/apiError";
 
 /**
  * POST /api/ai/evaluate
@@ -51,7 +52,7 @@ export default async function handler(
   } catch (e) {
     console.error("AI evaluation error:", e);
     return res.status(500).json({
-      error: e instanceof Error ? e.message : String(e),
+      error: toClientErrorMessage(e),
     });
   }
 }

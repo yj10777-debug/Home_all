@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { previousSunday } from "date-fns";
 import { generateWeeklyPrompt } from "../../../lib/gemini";
 import { getEffectiveToday, formatDateJst } from "../../../lib/dateUtils";
+import { toClientErrorMessage } from "../../../lib/apiError";
 
 /**
  * 直近の日曜起点の週開始日を取得する
@@ -42,7 +43,7 @@ export default async function handler(
 
     return res.status(200).json({ weekStart, weekEnd, prompt });
   } catch (e) {
-    const errMsg = e instanceof Error ? e.message : String(e);
-    return res.status(500).json({ error: errMsg });
+    console.error("Weekly prompt error:", e);
+    return res.status(500).json({ error: toClientErrorMessage(e) });
   }
 }

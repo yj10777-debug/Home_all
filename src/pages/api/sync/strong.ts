@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../../lib/prisma";
 import { parseTxtContent, buildStrongData } from "../../../lib/syncData";
+import { toClientErrorMessage } from "../../../lib/apiError";
 
 /**
  * POST /api/sync/strong
@@ -33,7 +34,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           errors.push(`${file.name}: パースできませんでした（日付が見つかりません）`);
         }
       } catch (e) {
-        errors.push(`${file.name}: ${String(e)}`);
+        console.error(`Strong パースエラー (${file.name}):`, e);
+        errors.push(`${file.name}: ${toClientErrorMessage(e)}`);
       }
     }
 
@@ -55,7 +57,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         });
         savedCount += 1;
       } catch (e) {
-        errors.push(`DB保存 ${dateStr}: ${String(e)}`);
+        console.error(`Strong DB保存エラー (${dateStr}):`, e);
+        errors.push(`DB保存 ${dateStr}: ${toClientErrorMessage(e)}`);
       }
     }
 
@@ -68,7 +71,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     });
   } catch (e) {
     console.error("Strong upload error:", e);
-    return res.status(500).json({ error: String(e) });
+    return res.status(500).json({ error: toClientErrorMessage(e) });
   }
 }
 

@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { prisma } from "../../../lib/prisma";
 import { isGoogleDriveConfigured } from "../../../lib/googleDrive";
+import { toClientErrorMessage } from "../../../lib/apiError";
 
 /**
  * GET /api/sync/status
@@ -36,6 +37,6 @@ export default async function handler(
     });
   } catch (e) {
     console.error("Sync status error:", e);
-    return res.status(500).json({ error: String(e) });
+    return res.status(500).json({ error: toClientErrorMessage(e) });
   }
 }

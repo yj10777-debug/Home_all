@@ -108,19 +108,24 @@ Google連携: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`
 - `HEALTH_SOURCE` = `fit` (既定) | `drive` （Health Auto Export 経由に切替）
 - `GOOGLE_DRIVE_HEALTH_FOLDER_ID`: Health Auto Export が JSON を保存する Drive フォルダ ID（HEALTH_SOURCE=drive のとき必須）
 
-本番: `CRON_SECRET`, `CRON_SCHEDULE`
+本番必須: `SUPABASE_JWT_SECRET`（JWT検証用。未設定だと認証が常に失敗するフェイルクローズ仕様）, `CRON_SECRET`（未設定だと `/api/sync/cron` が 500 を返す）  
+本番: `CRON_SCHEDULE`
 
 ### ヘルスケアデータ取り込みの構成
 
 ```
 syncData.ts
   └─ sources/appleHealth.ts          ← 抽象データソース（HEALTH_SOURCE で切替）
-       ├─ googleFit.ts               ← Google Fitness REST API (2026-06-30 終了予定)
-       └─ healthAutoExport.ts        ← Drive 上の Health Auto Export JSON (移行先)
+       ├─ googleFit.ts               ← Google Fitness REST API (2026-06-30 終了済み)
+       └─ healthAutoExport.ts        ← Drive 上の Health Auto Export JSON (現行の取得元)
 ```
 
-- Google Fit API は 2026-06-30 で完全終了予定。終了後は iOS「Health Auto Export」アプリで
-  Apple Health データを Drive に定期エクスポートし、`HEALTH_SOURCE=drive` に切り替える。
+- Google Fit API は 2026-06-30 に完全終了済み。iOS「Health Auto Export」アプリで
+  Apple Health データを Drive に定期エクスポートし、`HEALTH_SOURCE=drive` を使用する。
+- `HEALTH_SOURCE` 未設定時は、Drive 側の設定（`GOOGLE_DRIVE_HEALTH_FOLDER_ID` 等）があれば
+  自動的に drive を使用する（`selectSource()` の自動判定）。`HEALTH_SOURCE=fit` を明示指定、
+  またはどちらも未設定で Drive 未設定の場合は fit にフォールバックするが、Fit API は既に
+  終了済みのため `console.warn` で移行を促す警告が出る。
 - スコープ再取得スクリプト: `npx tsx scripts/google-auth.ts`
 - 過去日一括取得: `npx tsx scripts/backfill-fit.ts [from] [to]`
 
@@ -142,4 +147,3 @@ syncData.ts
 
 - あすけん 2026-02-25〜2026-05-22 の欠落データは自動cronで順次補完される（skipExistingPastDays の仕組みで未取得日のみ再取得）
 - Railway ボリューム設定で `secrets/` を永続化するとデプロイごとの再ログインを回避できる（任意）
-- 一時ファイルの削除: `_final.cjs`, `_harness.cjs` 等のルート直下 `_*.cjs` ファイルは削除可能

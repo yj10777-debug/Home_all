@@ -1,6 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { generateDailyPrompt } from "../../../lib/gemini";
 import { getEffectiveTodayStr } from "../../../lib/dateUtils";
+import { toClientErrorMessage } from "../../../lib/apiError";
 
 /**
  * 日次プロンプト生成エンドポイント
@@ -28,10 +29,12 @@ export default async function handler(
     const prompt = await generateDailyPrompt(dateStr);
     return res.status(200).json({ date: dateStr, prompt });
   } catch (e) {
-    const errMsg = e instanceof Error ? e.message : String(e);
-    if (errMsg.includes("データが見つかりません")) {
-      return res.status(404).json({ error: errMsg });
+    console.error("Daily prompt error:", e);
+    // 404判定は内部メッセージに依存するため、判定後にクライアント向けメッセージへ変換する
+    const isNotFound = e instanceof Error && e.message.includes("データが見つかりません");
+    if (isNotFound) {
+      return res.status(404).json({ error: toClientErrorMessage(e) });
     }
-    return res.status(500).json({ error: errMsg });
+    return res.status(500).json({ error: toClientErrorMessage(e) });
   }
 }

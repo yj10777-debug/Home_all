@@ -2,6 +2,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { syncData } from "../../../lib/syncData";
 import { prisma } from "../../../lib/prisma";
 import { getEffectiveToday, formatDateJst } from "../../../lib/dateUtils";
+import { toClientErrorMessage } from "../../../lib/apiError";
 
 /** スクレイピングは時間がかかるためタイムアウトを延長 */
 export const config = {
@@ -28,9 +29,14 @@ export default async function handler(
     return res.status(405).json({ error: "Method Not Allowed" });
   }
 
-  // シークレット認証（設定されている場合のみ）
+  // シークレット認証
   const secret = process.env.CRON_SECRET;
-  if (secret) {
+  if (!secret) {
+    // 本番で未設定はフェイルクローズ。開発環境では既存フローを壊さないよう認証をスキップする
+    if (process.env.NODE_ENV === "production") {
+      return res.status(500).json({ error: "CRON_SECRET is not configured" });
+    }
+  } else {
     const provided = req.headers["x-cron-secret"];
     if (provided !== secret) {
       return res.status(401).json({ error: "Unauthorized" });
@@ -83,7 +89,7 @@ export default async function handler(
     console.error("Cron sync error:", e);
     return res.status(500).json({
       success: false,
-      error: String(e),
+      error: toClientErrorMessage(e),
     });
   }
 }

@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { syncData } from "../../../lib/syncData";
+import { toClientErrorMessage } from "../../../lib/apiError";
 
 /** スクレイピングは時間がかかるためタイムアウトを延長 */
 export const config = {
@@ -29,7 +30,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.error("Sync error:", e);
     return res.status(500).json({
       success: false,
-      error: String(e),
+      error: toClientErrorMessage(e),
     });
   }
 }
