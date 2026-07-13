@@ -74,11 +74,13 @@ export async function autoLogin(options?: { headless?: boolean }): Promise<strin
         await page.goto('https://www.asken.jp/login', { waitUntil: 'domcontentloaded' });
 
         // メールアドレスとパスワードを入力
-        await page.fill('#CustomerMemberEmail', email);
-        await page.fill('#CustomerMemberPasswdPlain', password);
+        // 2026-07 のサイト改修で input の id 属性が削除されたため name 属性で特定する
+        // （旧 id もフォールバックとして残す）
+        await page.fill('input[name="CustomerMember[email]"], #CustomerMemberEmail', email);
+        await page.fill('input[name="CustomerMember[passwd_plain]"], #CustomerMemberPasswdPlain', password);
 
-        // ログインボタンをクリック
-        await page.click('#SubmitSubmit');
+        // ログインボタンをクリック（現行: type=image の input[name="Submit[submit]"]）
+        await page.click('input[name="Submit[submit]"], #SubmitSubmit');
 
         // ログイン後のリダイレクトを待つ（ログインページを離れるまで）
         await page.waitForURL((url) => !url.toString().includes('/login'), { timeout: 30000 });
@@ -93,7 +95,13 @@ export async function autoLogin(options?: { headless?: boolean }): Promise<strin
             // デバッグ用: ログイン失敗時のスクリーンショットを保存
             await page.screenshot({ path: path.join(SECRETS_DIR, 'login-failed.png'), fullPage: true });
             fs.writeFileSync(path.join(SECRETS_DIR, 'login-failed.html'), await page.content());
-            throw new Error(`ログインに失敗しました。メールアドレスまたはパスワードを確認してください。（リダイレクト先: ${page.url()}）`);
+            throw new Error(
+                `自動ログインに失敗しました（リダイレクト先: ${page.url()}）。\n` +
+                `メールアドレス/パスワードが正しい場合、あすけん側のBot対策により新規ログインが` +
+                `拒否されている可能性があります（2026-07 のサイト刷新以降に確認済み）。\n` +
+                `対処: 手動でブラウザからログインし、Cookieをエクスポートして ` +
+                `${STATE_FILE} に配置してください（詳細は README/CLAUDE.md の手順を参照）。`
+            );
         }
 
         // デバッグ用: ログイン成功後のスクリーンショットを保存
@@ -113,15 +121,26 @@ export async function autoLogin(options?: { headless?: boolean }): Promise<strin
 /**
  * 保存済みセッションが有効かどうかを簡易チェックする
  * セッションファイルの存在と最終更新日を確認する
+ *
+ * 2026-07: あすけんのサイト刷新でBot対策(自動化検出)が導入され、
+ * Playwright（playwright-extra+stealth、実Chromeバイナリ、人間らしい操作を試しても）
+ * による新規ログインは高確率で拒否されることが判明した。既存セッション（ブラウザで
+ * 手動ログインしてエクスポートしたCookie = secrets/asken-state.json）だけが通る。
+ * そのため「ファイルが古ければ即座に自動再ログインを試みる」旧ロジックは、
+ * まだ十分有効な手動セッションを無駄に破棄しにいく方向に働いてしまう。
+ * 実際の有効性は run.ts の verifySession()（実際に /wsp/ にアクセスして判定）に
+ * 委ね、ここでは「ファイルが存在し、かつ極端に古すぎない（=放置されたゴミではない）」
+ * ことだけを緩く確認する。
  * @returns セッションが有効そうなら true
  */
 export function isSessionLikelyValid(): boolean {
     if (!fs.existsSync(STATE_FILE)) return false;
 
-    // セッションファイルが24時間以上前なら期限切れとみなす
+    // セッションファイルがあまりに古い（30日以上）場合のみ期限切れとみなす。
+    // 実際の可否は run.ts の verifySession() が都度ネットワークで確認する。
     const stat = fs.statSync(STATE_FILE);
     const ageMs = Date.now() - stat.mtimeMs;
-    const MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24時間
+    const MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30日
     return ageMs < MAX_AGE_MS;
 }
 

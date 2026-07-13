@@ -81,10 +81,19 @@ ALTER TABLE "NewTable" ENABLE ROW LEVEL SECURITY;
 ### Playwright (あすけんスクレイピング) の注意点
 
 - **Bot検出回避のため** `--disable-blink-features=AutomationControlled` + カスタム UserAgent + `navigator.webdriver` 非表示を設定済み（`login.ts` / `run.ts`）
-- `.env.local` は `dotenv({ quiet: true })` で明示的にロード（`npx tsx` は自動ロードしない）
+- `.env.local` は `dotenv({ quiet: true })` で明示的にロード（`npx tsx` は自動ロードしない）。`quiet: true` は必須 — 省くと stdout に dotenv のログが混入し、親プロセス（`asken.ts`）の JSON パースが壊れる
 - **本番環境 (Railway)**: `secrets/asken-state.json`（セッションファイル）は揮発FSのため毎デプロイで消える → 同期のたびに自動ログインが走る仕様
 - ブラウザバイナリは **builderステージでインストール → runnerステージにコピー** する構成（`PLAYWRIGHT_BROWSERS_PATH=/app/playwright-browsers`）。runner で `npm install` するとバージョンがずれるため、runner で playwright install を実行してはいけない
 - ログイン成否のデバッグ: `secrets/login-success.png` / `secrets/login-failed.png` を確認する
+- **2026-07 以降、新規の自動ログイン（`autoLogin()`）はあすけん側のBot対策によりほぼ確実に拒否される**（下記「あすけんBot対策」を参照）。`secrets/asken-state.json` が生きている間はスクレイピングは正常に動くが、期限切れ後は手動でのCookie再配置が必要になる場合がある。
+
+### あすけんBot対策（2026-07 サイト刷新以降）
+
+2026-07 のサイト刷新で自動化検出が導入され、**Playwright/Puppeteer 経由の新規ログインは軒並み拒否される**ことを確認済み（`playwright-extra` + `puppeteer-extra-plugin-stealth`、実 Google Chrome バイナリ（`channel: 'chrome'`）、人間らしいマウス移動・タイピング速度を模したスクリプトのいずれを組み合わせても不可）。ログインPOST自体は 302 で「成功したように見える」Cookie（`PSID_0` 等）を発行するが、トップページはログイン前の匿名マーケティングページのまま返され、直後に `/wsp/` へアクセスすると `/login/?to=...` に弾かれる。CDP（DevTools Protocol）経由の自動操作そのものを検知している可能性が高い。
+
+一方、**既存の有効なセッションCookieを Playwright に読み込ませて閲覧するだけ**（ログインPOSTを伴わない通常ページ遷移）は問題なく通る。2026年1〜5月の運用実績もこの方式（`storageState` 再利用）そのもの。したがって恒久対策ではなく、以下のフォールバック運用とする。
+
+**セッション切れ時の対処**: 手動Cookie配置の手順は `asken-cookie-refresh` スキル（`.claude/skills/asken-cookie-refresh/SKILL.md`）を参照。
 
 ### APIエンドポイント構造
 
@@ -104,8 +113,8 @@ ALTER TABLE "NewTable" ENABLE ROW LEVEL SECURITY;
 必須: `DATABASE_URL`, `ASKEN_EMAIL`, `ASKEN_PASSWORD`  
 AI機能: `GEMINI_API_KEY`  
 Google連携: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`, `GOOGLE_DRIVE_STRONG_FOLDER_ID`  
-ヘルスケア連携 (任意・将来の Fit API 終了対応):
-- `HEALTH_SOURCE` = `fit` (既定) | `drive` （Health Auto Export 経由に切替）
+ヘルスケア連携 (任意・Google Fit API は 2026-06-30 終了済みのため drive を推奨):
+- `HEALTH_SOURCE` = `drive` (推奨) | `fit` （終了済み。指定した場合も動作はするが警告ログが出る）
 - `GOOGLE_DRIVE_HEALTH_FOLDER_ID`: Health Auto Export が JSON を保存する Drive フォルダ ID（HEALTH_SOURCE=drive のとき必須）
 
 本番必須: `SUPABASE_JWT_SECRET`（JWT検証用。未設定だと認証が常に失敗するフェイルクローズ仕様）, `CRON_SECRET`（未設定だと `/api/sync/cron` が 500 を返す）  
@@ -121,29 +130,17 @@ syncData.ts
 ```
 
 - Google Fit API は 2026-06-30 に完全終了済み。iOS「Health Auto Export」アプリで
-  Apple Health データを Drive に定期エクスポートし、`HEALTH_SOURCE=drive` を使用する。
+  Apple Health データを Drive に定期エクスポートし、`HEALTH_SOURCE=drive`（推奨・既定運用）を使用する。
 - `HEALTH_SOURCE` 未設定時は、Drive 側の設定（`GOOGLE_DRIVE_HEALTH_FOLDER_ID` 等）があれば
   自動的に drive を使用する（`selectSource()` の自動判定）。`HEALTH_SOURCE=fit` を明示指定、
   またはどちらも未設定で Drive 未設定の場合は fit にフォールバックするが、Fit API は既に
-  終了済みのため `console.warn` で移行を促す警告が出る。
-- スコープ再取得スクリプト: `npx tsx scripts/google-auth.ts`
+  終了済みのため `console.warn` で移行を促す警告が出る。fit 経路は互換のため残置しているのみで、
+  新規セットアップでは必ず `HEALTH_SOURCE=drive` を設定すること。
+- スコープ再取得スクリプト: `npx tsx scripts/google-auth.ts`（fitness.* スコープは Fit API 終了に伴い削除済み。
+  drive.readonly と calendar 系のみ取得する）
 - 過去日一括取得: `npx tsx scripts/backfill-fit.ts [from] [to]`
 
 ### スコアリング・AI評価
 
 `src/lib/scoring.ts` が栄養バランスを数値化。`src/lib/aiEvaluator.ts` が Gemini に評価を依頼し `AiEvaluation` テーブルに保存する。食事・筋トレ・登山のいずれも記録がない日は「未記録日」として週平均計算から除外される。
 
-## 直近の変更履歴（引き継ぎ用）
-
-### 2026-05-24 修正内容
-
-1. **あすけん Bot検出回避**: `login.ts` / `run.ts` に Playwright stealth mode 追加
-2. **dotenv 読み込み**: `run.ts` / `login.ts` に `config({ quiet: true })` を追加（`quiet: true` 必須 — 省くと stdout にログが混入して JSON パースが壊れる）
-3. **ScrapingLog テーブル追加**: スクレイピング結果をDBに記録。`/api/sync/logs` で確認可能。設定ページにもログ表示UI追加
-4. **Dockerfile 修正**: builderでブラウザインストール → runnerにコピーする構成に変更（`PLAYWRIGHT_BROWSERS_PATH=/app/playwright-browsers`）
-5. **JSON パース修正**: stdout に dotenv ログが混入した場合でも `"date"` キー起点でJSONを検索する正規表現に変更（`asken.ts`）
-
-### 未解決 / 次回対応
-
-- あすけん 2026-02-25〜2026-05-22 の欠落データは自動cronで順次補完される（skipExistingPastDays の仕組みで未取得日のみ再取得）
-- Railway ボリューム設定で `secrets/` を永続化するとデプロイごとの再ログインを回避できる（任意）

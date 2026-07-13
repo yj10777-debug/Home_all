@@ -13,7 +13,7 @@
     "db": "node scripts/run-prisma-studio.js"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
+    "@google/genai": "^2.11.0",
     "@prisma/adapter-pg": "^7.4.1",
     "date-fns": "^4.1.0",
     "jsonwebtoken": "^9.0.2",

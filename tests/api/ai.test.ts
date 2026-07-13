@@ -17,6 +17,11 @@ jest.mock("@/lib/gemini", () => ({
   getGemSystemPrompt: (...args: unknown[]) => mockGetGemSystemPrompt(...args),
 }));
 
+// gem-prompt が実 Prisma に接続しないよう dbConfig もモックする
+jest.mock("@/lib/dbConfig", () => ({
+  getSystemPrompt: jest.fn().mockResolvedValue(null),
+}));
+
 // ─── ヘルパー ──────────────────────────────────────
 
 function mockRes(): NextApiResponse & { _status?: number; _body?: unknown; _ended?: boolean } {
@@ -154,7 +159,7 @@ describe("GET /api/ai/gem-prompt", () => {
     const handler = (await import("@/pages/api/ai/gem-prompt")).default;
     const req = mockReq({ method: "GET" });
     const res = mockRes();
-    handler(req, res);
+    await handler(req, res);
 
     expect(res._status).toBe(200);
     expect((res._body as { systemPrompt: string }).systemPrompt).toBe("テストシステムプロンプト");
@@ -164,7 +169,7 @@ describe("GET /api/ai/gem-prompt", () => {
     const handler = (await import("@/pages/api/ai/gem-prompt")).default;
     const req = mockReq({ method: "DELETE" });
     const res = mockRes();
-    handler(req, res);
+    await handler(req, res);
 
     expect(res._status).toBe(405);
   });

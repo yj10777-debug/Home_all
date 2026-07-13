@@ -2,11 +2,9 @@
  * Google Fitness REST API クライアント（AppleWatch → iPhone ヘルスケア → Google Fit 同期データ取得用）
  *
  * !!! 重要 !!!
- * Google Fit API は 2026-06-30 をもって終了予定。
- * 代替経路の候補（実装着手順）:
- *   1. iOS「Health Auto Export」アプリで Google Drive 連携 → 既存 googleDrive.ts で取り込み
- *   2. HealthKit → ショートカットアプリで JSON 出力 → Drive 経由
- *   3. ユーザー自前の中継 Worker
+ * Google Fit API は 2026-06-30 に終了済み。HEALTH_SOURCE=drive への移行が必須。
+ * 本ファイルは互換のため残置しているのみで、新規セットアップでは使用しないこと。
+ * 移行先は healthAutoExport.ts（iOS「Health Auto Export」アプリ → Google Drive 経由）。
  * src/lib/sources/appleHealth.ts のインターフェースを変えずに、本ファイルの実装を差し替えるだけで移行できる構成にしている。
  */
 

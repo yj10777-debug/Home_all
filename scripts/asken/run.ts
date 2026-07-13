@@ -68,15 +68,24 @@ async function run() {
     const targetDate = process.argv[2] || todayStr();
     const headless = process.env.HEADLESS === 'true';
 
-    // セッションファイルが古い or 存在しない場合は事前にログイン
+    // セッションファイルが無い、または放置期間が極端に長い場合は事前にログインを試みる。
+    // （あすけんのBot対策により自動ログインが拒否されることがあるため、ここで失敗しても
+    //   即エラーにはせず、既存の state ファイルが残っていればそのまま使う可能性を残す）
     if (!isSessionLikelyValid()) {
-        console.log("セッションが無効です。自動ログインを実行します...");
-        await autoLogin({ headless });
+        console.log("セッションが無効です。自動ログインを試みます...");
+        try {
+            await autoLogin({ headless });
+        } catch (e) {
+            console.error("自動ログイン試行に失敗:", e instanceof Error ? e.message : e);
+        }
     }
 
     if (!fs.existsSync(STATE_FILE)) {
         console.error(`State file not found: ${STATE_FILE}`);
-        console.error("自動ログインに失敗しました。ASKEN_EMAIL / ASKEN_PASSWORD を確認してください。");
+        console.error(
+            "自動ログインに失敗しました。ASKEN_EMAIL / ASKEN_PASSWORD を確認するか、" +
+            "手動ログインでエクスポートしたCookieを secrets/asken-state.json に配置してください。"
+        );
         process.exit(1);
     }
 
@@ -127,7 +136,11 @@ async function run() {
             // 再ログイン後も失敗する場合はエラー
             const retryValid = await verifySession(context, targetDate);
             if (!retryValid) {
-                throw new Error("再ログイン後もセッションが無効です。認証情報を確認してください。");
+                throw new Error(
+                    "再ログイン後もセッションが無効です。あすけんのBot対策により自動ログインが" +
+                    "拒否されている可能性があります。手動ブラウザでログインし、Cookieをエクスポートして " +
+                    `${STATE_FILE} に配置してください。`
+                );
             }
         }
 

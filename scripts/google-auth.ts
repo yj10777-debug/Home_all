@@ -32,12 +32,6 @@ const REDIRECT_URI = "http://localhost:3456/callback";
 const SCOPES = [
   "https://www.googleapis.com/auth/drive.readonly",
   "https://www.googleapis.com/auth/calendar.events.readonly",
-  // Google Fit (AppleWatch ヘルスケアデータ取得用)
-  "https://www.googleapis.com/auth/fitness.activity.read",
-  "https://www.googleapis.com/auth/fitness.heart_rate.read",
-  "https://www.googleapis.com/auth/fitness.sleep.read",
-  "https://www.googleapis.com/auth/fitness.body.read",
-  "https://www.googleapis.com/auth/fitness.location.read",
 ].join(" ");
 
 if (!CLIENT_ID || !CLIENT_SECRET) {

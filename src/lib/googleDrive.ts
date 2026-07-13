@@ -22,23 +22,41 @@ function getConfig(): DriveConfig | null {
   return { ...oauth, folderId: folderId || "" };
 }
 
-/** フォルダ内の .txt ファイル一覧を取得 */
+/** フォルダ内の .txt ファイル一覧を取得（nextPageToken を辿り全件取得） */
 async function listTxtFiles(accessToken: string, folderId: string): Promise<{ id: string; name: string; modifiedTime: string }[]> {
   const query = `'${folderId}' in parents and mimeType='text/plain' and trashed=false`;
-  const fields = "files(id,name,modifiedTime)";
-  const url = `${DRIVE_API}/files?q=${encodeURIComponent(query)}&fields=${encodeURIComponent(fields)}&orderBy=modifiedTime desc&pageSize=1000`;
+  const fields = "nextPageToken,files(id,name,modifiedTime)";
 
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${accessToken}` },
-  });
+  const allFiles: { id: string; name: string; modifiedTime: string }[] = [];
+  let pageToken: string | undefined;
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`ファイル一覧取得失敗: ${res.status} ${err}`);
-  }
+  do {
+    const params = new URLSearchParams({
+      q: query,
+      fields,
+      orderBy: "modifiedTime desc",
+      pageSize: "1000",
+    });
+    if (pageToken) params.set("pageToken", pageToken);
 
-  const data = (await res.json()) as { files: { id: string; name: string; modifiedTime: string }[] };
-  return data.files || [];
+    const res = await fetch(`${DRIVE_API}/files?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`ファイル一覧取得失敗: ${res.status} ${err}`);
+    }
+
+    const data = (await res.json()) as {
+      files: { id: string; name: string; modifiedTime: string }[];
+      nextPageToken?: string;
+    };
+    allFiles.push(...(data.files || []));
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
+  return allFiles;
 }
 
 /** ファイルのテキスト内容をダウンロード */

@@ -191,17 +191,35 @@ export function isHealthAutoExportConfigured(): boolean {
   return !!process.env[HAE_FOLDER_ENV] && getGoogleOAuthConfig() !== null;
 }
 
-/** フォルダ内の .json ファイル一覧を取得 */
+/** フォルダ内の .json ファイル一覧を取得（nextPageToken を辿り全件取得。日次でファイルが増えるため 1000 件超でも取得漏れが起きないようにする） */
 async function listJsonFiles(accessToken: string, folderId: string): Promise<{ id: string; name: string }[]> {
   const query = `'${folderId}' in parents and mimeType='application/json' and trashed=false`;
-  const fields = "files(id,name,modifiedTime)";
-  const url = `${DRIVE_API}/files?q=${encodeURIComponent(query)}&fields=${encodeURIComponent(fields)}&orderBy=modifiedTime desc&pageSize=1000`;
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
-  if (!res.ok) {
-    throw new Error(`HAE フォルダ一覧取得失敗: ${res.status} ${await res.text()}`);
-  }
-  const data = (await res.json()) as { files: { id: string; name: string }[] };
-  return data.files || [];
+  const fields = "nextPageToken,files(id,name,modifiedTime)";
+
+  const allFiles: { id: string; name: string }[] = [];
+  let pageToken: string | undefined;
+
+  do {
+    const params = new URLSearchParams({
+      q: query,
+      fields,
+      orderBy: "modifiedTime desc",
+      pageSize: "1000",
+    });
+    if (pageToken) params.set("pageToken", pageToken);
+
+    const res = await fetch(`${DRIVE_API}/files?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) {
+      throw new Error(`HAE フォルダ一覧取得失敗: ${res.status} ${await res.text()}`);
+    }
+    const data = (await res.json()) as { files: { id: string; name: string }[]; nextPageToken?: string };
+    allFiles.push(...(data.files || []));
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+
+  return allFiles;
 }
 
 async function downloadJson(accessToken: string, fileId: string): Promise<HaeExport> {
