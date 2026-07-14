@@ -8,6 +8,9 @@
  *   PORT: Next.jsサーバーのポート（デフォルト: 3000）
  */
 import cron from "node-cron";
+import { syncData } from "../src/lib/syncData";
+import { prisma } from "../src/lib/prisma";
+import { getEffectiveToday, formatDateJst } from "../src/lib/dateUtils";
 
 const SYNC_SCHEDULE = process.env.CRON_SCHEDULE || "0 9,11,13,16,19,21,22,23 * * *";
 const PAST_SYNC_SCHEDULE = "0 5 * * *"; // 毎日朝5時（JST）に過去分を同期（未取得の日のみ）
@@ -16,7 +19,12 @@ const SECRET = process.env.CRON_SECRET || "";
 const PORT = process.env.PORT || "3000";
 const BASE_URL = `http://localhost:${PORT}`;
 
-/** 共通ヘッダー */
+/** 過去分同期の日数（/api/sync/cron と揃える） */
+const PAST_SYNC_DAYS = 30;
+/** この日数より前の日は「既に取得済みならスキップ」 */
+const SKIP_EXISTING_PAST_DAYS = 3;
+
+/** 共通ヘッダー（AI評価APIの呼び出しで使用） */
 function getHeaders(): Record<string, string> {
   return {
     "Content-Type": "application/json",
@@ -24,59 +32,83 @@ function getHeaders(): Record<string, string> {
   };
 }
 
-/** データ同期APIを呼び出す（前日〜当日の2日分） */
+/** 同期結果を SyncLog(id=1) に記録する（/api/sync/cron と同一処理） */
+async function recordSyncLog(result: {
+  askenCount: number;
+  strongCount: number;
+  dayCount: number;
+  errors: string[];
+}) {
+  try {
+    await prisma.syncLog.upsert({
+      where: { id: 1 },
+      update: {
+        timestamp: new Date(),
+        askenCount: result.askenCount,
+        strongCount: result.strongCount,
+        dayCount: result.dayCount,
+        errors: JSON.stringify(result.errors),
+      },
+      create: {
+        id: 1,
+        timestamp: new Date(),
+        askenCount: result.askenCount,
+        strongCount: result.strongCount,
+        dayCount: result.dayCount,
+        errors: JSON.stringify(result.errors),
+      },
+    });
+  } catch (logErr) {
+    console.error("[cron] SyncLog 保存失敗:", logErr);
+  }
+}
+
+/**
+ * データ同期（前日〜当日の2日分）
+ * 以前は自身の /api/sync/cron を fetch していたが、CRON_SECRET 未設定だと
+ * 本番でフェイルクローズ(500)になり cron が機能しなかったため、syncData を
+ * 同一プロセスで直接呼ぶ方式に変更（認証不要・自己HTTPホップ不要）。
+ */
 async function triggerSync() {
   const now = new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
   console.log(`[cron-sync] ${now} 同期を開始...`);
 
   try {
-    const res = await fetch(`${BASE_URL}/api/sync/cron`, {
-      method: "POST",
-      headers: getHeaders(),
-      body: JSON.stringify({}),
-    });
-
-    const data = await res.json();
-    if (res.ok && data.success) {
-      console.log(
-        `[cron-sync] 完了 — あすけん: ${data.askenCount}日, Strong: ${data.strongCount}日, 計: ${data.dayCount}件`
-      );
-      if (data.errors?.length > 0) {
-        console.log(`[cron-sync] 警告: ${data.errors.join(" / ")}`);
-      }
-    } else {
-      console.error(`[cron-sync] エラー:`, data.error || data);
+    const result = await syncData();
+    await recordSyncLog(result);
+    console.log(
+      `[cron-sync] 完了 — あすけん: ${result.askenCount}日, Strong: ${result.strongCount}日, 計: ${result.dayCount}件`
+    );
+    if (result.errors?.length > 0) {
+      console.log(`[cron-sync] 警告: ${result.errors.join(" / ")}`);
     }
   } catch (e) {
-    console.error(`[cron-sync] 通信失敗:`, e);
+    console.error(`[cron-sync] 同期失敗:`, e);
   }
 }
 
-/** 過去分同期（朝5時用・過去30日で未取得の日のみ取得） */
+/** 過去分同期（朝5時用・過去30日で3日以上前は未取得のみ取得） */
 async function triggerPastSync() {
   const now = new Date().toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
   console.log(`[cron-past] ${now} 過去分同期を開始...`);
 
   try {
-    const res = await fetch(`${BASE_URL}/api/sync/cron`, {
-      method: "POST",
-      headers: getHeaders(),
-      body: JSON.stringify({ pastOnly: true }),
+    const result = await syncData({
+      from: formatDateJst(
+        new Date(getEffectiveToday().getTime() - (PAST_SYNC_DAYS - 1) * 86400000)
+      ),
+      to: formatDateJst(getEffectiveToday()),
+      skipExistingPastDays: SKIP_EXISTING_PAST_DAYS,
     });
-
-    const data = await res.json();
-    if (res.ok && data.success) {
-      console.log(
-        `[cron-past] 完了 — あすけん: ${data.askenCount}日, Strong: ${data.strongCount}日, 計: ${data.dayCount}件`
-      );
-      if (data.errors?.length > 0) {
-        console.log(`[cron-past] 警告: ${data.errors.join(" / ")}`);
-      }
-    } else {
-      console.error(`[cron-past] エラー:`, data.error || data);
+    await recordSyncLog(result);
+    console.log(
+      `[cron-past] 完了 — あすけん: ${result.askenCount}日, Strong: ${result.strongCount}日, 計: ${result.dayCount}件`
+    );
+    if (result.errors?.length > 0) {
+      console.log(`[cron-past] 警告: ${result.errors.join(" / ")}`);
     }
   } catch (e) {
-    console.error(`[cron-past] 通信失敗:`, e);
+    console.error(`[cron-past] 同期失敗:`, e);
   }
 }
 
