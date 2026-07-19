@@ -192,8 +192,14 @@ export function isHealthAutoExportConfigured(): boolean {
 }
 
 /** フォルダ内の .json ファイル一覧を取得（nextPageToken を辿り全件取得。日次でファイルが増えるため 1000 件超でも取得漏れが起きないようにする） */
-async function listJsonFiles(accessToken: string, folderId: string): Promise<{ id: string; name: string }[]> {
-  const query = `'${folderId}' in parents and mimeType='application/json' and trashed=false`;
+async function listJsonFiles(
+  accessToken: string,
+  folderId: string,
+  modifiedAfterIso?: string
+): Promise<{ id: string; name: string }[]> {
+  let query = `'${folderId}' in parents and mimeType='application/json' and trashed=false`;
+  // 同期対象期間より十分前のファイルを除外（フォルダが日次で成長しても全件DLしない）
+  if (modifiedAfterIso) query += ` and modifiedTime > '${modifiedAfterIso}'`;
   const fields = "nextPageToken,files(id,name,modifiedTime)";
 
   const allFiles: { id: string; name: string }[] = [];
@@ -255,9 +261,20 @@ export async function fetchHealthFromAutoExport(targetDates: Set<string>): Promi
     return { data: result, errors };
   }
 
+  // 対象期間の最古日から30日前より後に更新されたファイルだけ取得する
+  // （HAEのエクスポートはデータ日の直後に書かれるため十分な余裕）
+  let modifiedAfterIso: string | undefined;
+  const sortedDates = Array.from(targetDates).sort();
+  if (sortedDates.length > 0) {
+    const oldest = new Date(sortedDates[0] + "T00:00:00Z");
+    if (!Number.isNaN(oldest.getTime())) {
+      modifiedAfterIso = new Date(oldest.getTime() - 30 * 86400000).toISOString();
+    }
+  }
+
   let files: { id: string; name: string }[];
   try {
-    files = await listJsonFiles(accessToken, folderId);
+    files = await listJsonFiles(accessToken, folderId, modifiedAfterIso);
   } catch (e) {
     errors.push(`HAE 一覧取得失敗: ${String(e)}`);
     return { data: result, errors };
@@ -269,12 +286,16 @@ export async function fetchHealthFromAutoExport(targetDates: Set<string>): Promi
       const parsed = parseHealthAutoExport(json);
       for (const [date, day] of parsed) {
         if (!targetDates.has(date)) continue;
-        // 後勝ち（同一日に複数ファイルがあれば最新更新時刻のもので上書き）
+        // 一覧は modifiedTime 降順のため先勝ち＝最新更新のファイルが優先
+        //（従来の無条件 set は最後に処理される最古ファイルが勝つバグだった）
+        if (result.has(date)) continue;
         result.set(date, day);
       }
     } catch (e) {
       errors.push(`HAE ${file.name}: ${String(e)}`);
     }
+    // 対象日がすべて揃ったら残りのダウンロードを省略
+    if (result.size >= targetDates.size) break;
   }
 
   return { data: result, errors };

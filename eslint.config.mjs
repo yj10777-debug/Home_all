@@ -12,7 +12,28 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // ビルド成果物・デバッグ残骸（lint対象外）
+    "scripts/asken/dist/**",
+    ".tmpbuild/**",
+    ".tb_*/**",
+    ".tb2_*/**",
   ]),
+  // CommonJS ファイルでは require() を許可
+  {
+    files: ["**/*.cjs", "**/*.js"],
+    rules: {
+      "@typescript-eslint/no-require-imports": "off",
+    },
+  },
+  // 意図的な未使用（インターフェース維持等）は _ プレフィックスで表明する
+  {
+    rules: {
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_", caughtErrorsIgnorePattern: "^_" },
+      ],
+    },
+  },
 ]);
 
 export default eslintConfig;

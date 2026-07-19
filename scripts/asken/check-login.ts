@@ -36,11 +36,12 @@ const STATE_FILE = path.join(SECRETS_DIR, 'asken-state.json');
 
 function todayStr() {
     const now = new Date();
-    const jstHour = (now.getUTCHours() + 9) % 24;
-    const effective = jstHour < 5 ? new Date(now.getTime() - 86400000) : now;
-    const y = effective.getFullYear();
-    const m = String(effective.getMonth() + 1).padStart(2, '0');
-    const d = String(effective.getDate()).padStart(2, '0');
+    // JST = UTC+9 に平行移動し、UTCメソッドでJSTの暦日を取得する（サーバーTZ非依存）
+    const jst = new Date(now.getTime() + 9 * 3600000);
+    const effective = jst.getUTCHours() < 5 ? new Date(jst.getTime() - 86400000) : jst;
+    const y = effective.getUTCFullYear();
+    const m = String(effective.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(effective.getUTCDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
 }
 

@@ -411,20 +411,6 @@ export async function generateWeeklyPrompt(sundayStr: string): Promise<string> {
 
     const cal = computeTotalCalories(nutrients, items);
     const pfc = computePfc(nutrients);
-    weekTotalCalories += cal;
-    weekTotalProtein += pfc.protein;
-    weekTotalFat += pfc.fat;
-    weekTotalCarbs += pfc.carbs;
-
-    const hasWorkout = !!strong && (strong.workouts?.length ?? 0) > 0;
-    if (hasWorkout && strong) {
-      workoutDays++;
-      totalVolume += strong.totals?.volumeKg ?? 0;
-    }
-
-    const workoutSummary = hasWorkout && strong
-      ? `筋トレあり(${strong.workouts.map((w) => w.title).join(", ")} / ${strong.totals?.volumeKg ?? 0}kg)`
-      : "筋トレなし";
 
     const dayData: DayData = {
       date: record.date,
@@ -450,6 +436,22 @@ export async function generateWeeklyPrompt(sundayStr: string): Promise<string> {
       continue;
     }
 
+    // 摂取・筋トレの週集計は記録あり日のみ（÷記録日数で平均する）
+    weekTotalCalories += cal;
+    weekTotalProtein += pfc.protein;
+    weekTotalFat += pfc.fat;
+    weekTotalCarbs += pfc.carbs;
+
+    const hasWorkout = !!strong && (strong.workouts?.length ?? 0) > 0;
+    if (hasWorkout && strong) {
+      workoutDays++;
+      totalVolume += strong.totals?.volumeKg ?? 0;
+    }
+
+    const workoutSummary = hasWorkout && strong
+      ? `筋トレあり(${strong.workouts.map((w) => w.title).join(", ")} / ${strong.totals?.volumeKg ?? 0}kg)`
+      : "筋トレなし";
+
     const hiking = (record.hasHiking ?? false) ? " / 登山あり⛰️" : "";
     dailySummaries.push(
       `${dateStr}: ${cal}kcal / P${Math.round(pfc.protein)}g F${Math.round(pfc.fat)}g C${Math.round(pfc.carbs)}g / ${workoutSummary}${hiking}`
@@ -474,10 +476,11 @@ export async function generateWeeklyPrompt(sundayStr: string): Promise<string> {
     dailyScoreLines.push(`${dateStr}: ${sc.total}点`);
   }
 
-  const avgCalories = Math.round(weekTotalCalories / 7);
-  const avgProtein = Math.round(weekTotalProtein / 7);
-  const avgFat = Math.round(weekTotalFat / 7);
-  const avgCarbs = Math.round(weekTotalCarbs / 7);
+  // 平均は記録あり日（scoredDays）ベース。記録なし日を0kcalとして混ぜない
+  const avgCalories = scoredDays > 0 ? Math.round(weekTotalCalories / scoredDays) : 0;
+  const avgProtein = scoredDays > 0 ? Math.round(weekTotalProtein / scoredDays) : 0;
+  const avgFat = scoredDays > 0 ? Math.round(weekTotalFat / scoredDays) : 0;
+  const avgCarbs = scoredDays > 0 ? Math.round(weekTotalCarbs / scoredDays) : 0;
   const avgScore = scoredDays > 0 ? Math.round(weekTotalScore / scoredDays) : 0;
   const avgSteps = stepsDays > 0 ? Math.round(weekTotalSteps / stepsDays) : null;
   const avgSleepHours = sleepDays > 0 ? (weekTotalSleepMinutes / sleepDays / 60).toFixed(1) : null;
@@ -510,7 +513,7 @@ ${dailyScoreLines.join("\n")}
 ${dailySummaries.join("\n")}
 
 ## 週間集計
-- 平均カロリー: ${avgCalories} kcal/日（目標: ${goals.calories}）
+- 平均カロリー: ${avgCalories} kcal/日（記録あり${scoredDays}日の平均、目標: ${goals.calories}）
 - 平均PFC: P${avgProtein}g / F${avgFat}g / C${avgCarbs}g
 - 筋トレ日数: ${workoutDays}日 / 合計ボリューム: ${totalVolume}kg
 ${healthSection}
@@ -569,7 +572,7 @@ g/kg = たんぱく質摂取量 ÷ 体重（体重不明なら目標P${GOAL_PFC.
 ※睡眠データがない場合は満点(15点)扱いとし、減点しない。ただしその際は「睡眠が良好だった」と断定せず、「睡眠は記録なしのため満点扱い」として総評で触れること。
 
 ⑤ 活動量（10点）
-10000歩以上 → 10  /  8000–9999 → 9  /  6000–7999 → 7  /  4000–5999 → 5  /  4000未満 → 3
+10000歩以上 → 10  /  8000–9999 → 8  /  6000–7999 → 7  /  4000–5999 → 5  /  4000未満 → 3
 
 ⑥ 栄養バランス（5点）
 プロンプトに記載の「脂質エネルギー比 ○%」をそのまま使う（自分で再計算しない）。

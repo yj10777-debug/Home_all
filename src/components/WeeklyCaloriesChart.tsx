@@ -28,8 +28,14 @@ const formatTick = (value: string) => {
     return formatDate(parsed, 'M/d(EEE)');
 };
 
-const CustomTooltip = ({ active, payload, label }: any) => {
-    if (!active || !payload?.length) return null;
+type TooltipProps = {
+    active?: boolean;
+    payload?: { value?: number }[];
+    label?: string;
+};
+
+const CustomTooltip = ({ active, payload, label }: TooltipProps) => {
+    if (!active || !payload?.length || !label) return null;
     const cal = payload[0]?.value ?? 0;
     const parsed = parseISO(label);
     const dateLabel = isValid(parsed) ? formatDate(parsed, 'yyyy/M/d(EEE)') : label;
@@ -42,7 +48,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 export const WeeklyCaloriesChart: React.FC<WeeklyCaloriesChartProps> = ({ data, goal = 2267, onBarClick }) => {
-    const handleClick = (entry: any) => {
+    const handleClick = (entry: { date?: string }) => {
         if (onBarClick && entry?.date) {
             onBarClick(entry.date);
         }
@@ -70,9 +76,11 @@ export const WeeklyCaloriesChart: React.FC<WeeklyCaloriesChartProps> = ({ data, 
                     <BarChart
                         data={data}
                         margin={{ top: 12, right: 12, left: 4, bottom: 4 }}
-                        onClick={(state: any) => {
-                            if (state?.activePayload?.[0]?.payload) {
-                                handleClick(state.activePayload[0].payload);
+                        onClick={(state) => {
+                            const payload = (state as { activePayload?: { payload?: { date?: string } }[] })
+                                ?.activePayload?.[0]?.payload;
+                            if (payload) {
+                                handleClick(payload);
                             }
                         }}
                     >

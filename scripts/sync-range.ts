@@ -2,8 +2,9 @@
  * 指定日付範囲で syncData を実行する（テスト・手動用）
  * 例: npx tsx scripts/sync-range.ts 2026-02-17 2026-02-24
  */
-require("dotenv").config();
-require("dotenv").config({ path: ".env.local" });
+import { config as loadEnv } from "dotenv";
+loadEnv();
+loadEnv({ path: ".env.local" });
 
 import { syncData } from "../src/lib/syncData";
 import { format, subDays } from "date-fns";

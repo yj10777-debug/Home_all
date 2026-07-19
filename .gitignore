@@ -49,3 +49,14 @@ scripts/asken/dist/
 
 # ルート直下の一時デバッグスクリプト
 /_*.cjs
+
+# デバッグ用の一時ビルドディレクトリ（削除待ちの残骸）
+/.tmpbuild/
+/.tb_*/
+/.tb2_*/
+
+# AI評価のエクスポートダンプ（個人の健康・食事データを含むためコミット禁止）
+/ai_evals_output.json
+
+# Claude Code のマシンローカル設定（個人の許可設定のため共有しない）
+.claude/settings.local.json

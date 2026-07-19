@@ -10,8 +10,8 @@ export class ApiError extends Error {
 
 const BASE_URL = '/api';
 
-interface RequestOptions extends RequestInit {
-  body?: any;
+interface RequestOptions extends Omit<RequestInit, "body"> {
+  body?: unknown;
 }
 
 export async function apiClient<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -26,9 +26,9 @@ export async function apiClient<T>(path: string, options: RequestOptions = {}): 
   const config: RequestInit = {
     ...options,
     headers,
-    body: options.body && !(options.body instanceof FormData) 
-      ? JSON.stringify(options.body) 
-      : options.body,
+    body: options.body && !(options.body instanceof FormData)
+      ? JSON.stringify(options.body)
+      : (options.body as BodyInit | undefined),
   };
 
   try {
@@ -39,7 +39,7 @@ export async function apiClient<T>(path: string, options: RequestOptions = {}): 
       try {
         const errorData = await response.json();
         errorMessage = errorData.message || JSON.stringify(errorData) || errorMessage;
-      } catch (e) {
+      } catch {
         // ignore json parse error
       }
       throw new ApiError(errorMessage, response.status);

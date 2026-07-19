@@ -61,7 +61,7 @@ export default function AnalyticsPage() {
         return isValid(parsed) && isWithinInterval(parsed, { start: periodStart, end });
       })
       .sort((a, b) => a.date.localeCompare(b.date));
-  }, [days, period, periodStart]);
+  }, [days, periodStart]);
 
   const prevPeriodDays = useMemo(() => {
     if (!periodStart) return [];

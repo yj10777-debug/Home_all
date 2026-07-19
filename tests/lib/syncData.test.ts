@@ -3,7 +3,6 @@
  * child_process, fs, Prisma をモックしてテスト
  */
 
-import path from "path";
 import { EventEmitter } from "events";
 
 // ─── モック設定 ──────────────────────────────────────

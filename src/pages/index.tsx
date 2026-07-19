@@ -40,10 +40,9 @@ export default function Home() {
         setMounted(true);
     }, []);
 
-    /** キャッシュを使わず常に最新を取得するための fetch オプション */
-    const noCache = { cache: "no-store" as RequestCache };
-
     const fetchData = useCallback(async () => {
+        /** キャッシュを使わず常に最新を取得するための fetch オプション */
+        const noCache = { cache: "no-store" as RequestCache };
         try {
             const todayStr = getEffectiveTodayStr();
 
@@ -174,10 +173,6 @@ export default function Home() {
     const isOverGoal = todayCalories > GOAL_CALORIES * 1.1; // 10%許容
     const remaining = Math.max(0, GOAL_CALORIES - todayCalories);
 
-    const formatSchedule = (cron: string) => {
-        if (cron === "0 5,12,19 * * *") return "毎日 5時/12時/19時";
-        return cron;
-    };
 
     const formatRelativeTime = (timestamp: string): string => {
         if (!mounted) return "";

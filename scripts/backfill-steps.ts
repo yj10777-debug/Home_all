@@ -20,9 +20,7 @@ function runAsken(dateStr: string): Promise<{ date: string; result: { steps: num
         });
 
         let stdout = '';
-        let stderr = '';
         proc.stdout?.on('data', (d) => { stdout += d.toString(); });
-        proc.stderr?.on('data', (d) => { stderr += d.toString(); });
 
         proc.on('close', (code) => {
             if (code !== 0) {

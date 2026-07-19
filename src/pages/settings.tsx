@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useSyncExternalStore } from "react";
 import Head from "next/head";
-import { getStoredTheme, setStoredTheme, type ThemeId } from "../lib/themeStorage";
+import { getStoredTheme, setStoredTheme, subscribeTheme, type ThemeId } from "../lib/themeStorage";
 
 const THEME_OPTIONS: { id: ThemeId; label: string; description: string }[] = [
   { id: "default", label: "デフォルト（緑）", description: "アプリの標準テーマ" },
@@ -9,6 +9,9 @@ const THEME_OPTIONS: { id: ThemeId; label: string; description: string }[] = [
   { id: "pink", label: "ピンク", description: "女性に使いやすいローズ系" },
   { id: "ocean", label: "オーシャンブルー", description: "落ち着いた青系・信頼感" },
 ];
+
+/** SSR/ハイドレーション時のテーマスナップショット */
+const getServerTheme = (): ThemeId => "default";
 
 type ScrapingLogEntry = {
   id: string;
@@ -24,19 +27,14 @@ export default function SettingsPage() {
   const [promptDraft, setPromptDraft] = useState("");
   const [promptLoading, setPromptLoading] = useState(true);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
-  const [theme, setTheme] = useState<ThemeId>("default");
-  const [themeMounted, setThemeMounted] = useState(false);
+  // localStorage を外部ストアとして購読（SSR中は "default"、マウント後に保存値へ自動更新）
+  const theme = useSyncExternalStore(subscribeTheme, getStoredTheme, getServerTheme);
   const [scrapingLogs, setScrapingLogs] = useState<ScrapingLogEntry[]>([]);
   const [logsLoading, setLogsLoading] = useState(false);
   const [expandedLog, setExpandedLog] = useState<string | null>(null);
 
   useEffect(() => {
-    setThemeMounted(true);
-    setTheme(getStoredTheme());
-  }, []);
-
-  useEffect(() => {
-    setPromptLoading(true);
+    // promptLoading は初期値 true のため、ここでのセットは不要
     fetch("/api/ai/gem-prompt")
       .then((r) => r.json())
       .then((data) => {
@@ -81,8 +79,8 @@ export default function SettingsPage() {
   };
 
   const handleThemeChange = (id: ThemeId) => {
+    // setStoredTheme が購読リスナーへ通知し、useSyncExternalStore が再レンダーする
     setStoredTheme(id);
-    setTheme(id);
   };
 
   const loadLogs = () => {
@@ -105,8 +103,7 @@ export default function SettingsPage() {
           <div className="bg-[var(--bg-card)] border border-[var(--border-card)] rounded-xl p-6 mb-6">
             <h2 className="text-lg font-bold text-[var(--text-primary)] mb-2">色のテーマ</h2>
             <p className="text-[var(--text-tertiary)] text-xs mb-4">画面の見た目を切り替えます。</p>
-            {themeMounted && (
-              <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2">
                 {THEME_OPTIONS.map((opt) => (
                   <button
                     key={opt.id}
@@ -123,8 +120,7 @@ export default function SettingsPage() {
                     {opt.label}
                   </button>
                 ))}
-              </div>
-            )}
+            </div>
           </div>
 
           {/* スクレイピングログ */}

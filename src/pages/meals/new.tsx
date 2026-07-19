@@ -78,8 +78,8 @@ export default function NewMeal() {
             });
 
             router.push('/meals');
-        } catch (err: any) {
-            setError(err.message || '登録に失敗しました');
+        } catch (err) {
+            setError(err instanceof Error && err.message ? err.message : '登録に失敗しました');
             setSubmitting(false);
         }
     };

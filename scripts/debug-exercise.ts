@@ -1,6 +1,5 @@
 import { chromium } from 'playwright';
 import path from 'path';
-import fs from 'fs';
 
 const OUT_DIR = path.join(process.cwd(), 'secrets');
 

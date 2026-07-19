@@ -9,8 +9,8 @@ export default async function handler(
   let userId: string;
   try {
     userId = getUserIdFromRequest(req);
-  } catch (e: any) {
-    if (e.message === 'UNAUTHORIZED') {
+  } catch (e) {
+    if (e instanceof Error && e.message === 'UNAUTHORIZED') {
       return res.status(401).json({ error: 'Unauthorized' });
     }
     console.error(e);

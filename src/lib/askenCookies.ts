@@ -44,10 +44,11 @@ export function normalizeSameSite(raw: unknown): "Strict" | "Lax" | "None" {
 }
 
 /** 任意のエクスポート要素を Playwright Cookie に変換（変換不能なら null） */
-export function toPlaywrightCookie(raw: any): PlaywrightCookie | null {
+export function toPlaywrightCookie(rawInput: unknown): PlaywrightCookie | null {
+  const raw = rawInput as Record<string, unknown> | null | undefined;
   if (!raw || typeof raw.name !== "string" || typeof raw.value !== "string") return null;
 
-  let domain: string = raw.domain ?? "";
+  let domain: string = typeof raw.domain === "string" ? raw.domain : "";
   if (!domain) return null;
   // hostOnly=true の場合、先頭ドットを付けない。falseまたはドメイン先頭がドットならそのまま。
   if (raw.hostOnly === false && !domain.startsWith(".")) {
@@ -72,7 +73,7 @@ export function toPlaywrightCookie(raw: any): PlaywrightCookie | null {
     name: raw.name,
     value: raw.value,
     domain,
-    path: raw.path ?? "/",
+    path: typeof raw.path === "string" ? raw.path : "/",
     expires,
     httpOnly: !!raw.httpOnly,
     secure: !!raw.secure,
@@ -139,7 +140,7 @@ export function parseCookiesFromText(rawText: string): PlaywrightCookie[] {
     throw new CookieParseError("入力が空です。");
   }
 
-  let parsed: any = null;
+  let parsed: unknown = null;
   try {
     parsed = JSON.parse(text);
   } catch {
@@ -150,10 +151,11 @@ export function parseCookiesFromText(rawText: string): PlaywrightCookie[] {
 
   if (parsed !== null) {
     // 受け付ける形: (a) Cookie-Editor の配列  (b) { cookies: [...] }  (c) Playwright storageState そのもの
-    const rawCookies: any[] = Array.isArray(parsed)
+    const parsedCookies = (parsed as { cookies?: unknown }).cookies;
+    const rawCookies: unknown[] = Array.isArray(parsed)
       ? parsed
-      : Array.isArray(parsed?.cookies)
-        ? parsed.cookies
+      : Array.isArray(parsedCookies)
+        ? parsedCookies
         : [];
     if (rawCookies.length === 0) {
       throw new CookieParseError(
@@ -212,10 +214,11 @@ export function writeStorageState(storageState: StorageState, projectRoot: strin
  * 不正・空の場合は CookieParseError を投げる。
  */
 export function normalizeStorageStateInput(input: unknown): StorageState {
-  if (!input || typeof input !== "object" || !Array.isArray((input as any).cookies)) {
+  const inputCookies = (input as { cookies?: unknown } | null | undefined)?.cookies;
+  if (!input || typeof input !== "object" || !Array.isArray(inputCookies)) {
     throw new CookieParseError("storageState.cookies が配列ではありません。");
   }
-  const cookies = (input as any).cookies
+  const cookies = inputCookies
     .map(toPlaywrightCookie)
     .filter((c: PlaywrightCookie | null): c is PlaywrightCookie => c !== null)
     .filter((c: PlaywrightCookie) => c.domain.includes("asken.jp"));

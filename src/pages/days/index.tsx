@@ -20,7 +20,7 @@ export default function DaysIndex() {
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
-    setFetchError(null);
+    // fetchError は初期値 null のため、ここでのリセットは不要
     fetch("/api/days", { cache: "no-store" })
       .then((r) => {
         if (!r.ok) throw new Error(`API ${r.status}`);

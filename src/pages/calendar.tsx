@@ -73,18 +73,20 @@ export default function CalendarPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
-    if (!selectedDate) {
+  // 詳細取得は選択イベント起点で行う（エフェクト内 setState を避ける）
+  const handleSelectDate = useCallback((date: string | null) => {
+    setSelectedDate(date);
+    if (!date) {
       setDayDetail(null);
       return;
     }
     setDetailLoading(true);
-    fetch(`/api/day/${selectedDate}`, { cache: "no-store" })
+    fetch(`/api/day/${date}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then(setDayDetail)
       .catch(() => setDayDetail(null))
       .finally(() => setDetailLoading(false));
-  }, [selectedDate]);
+  }, []);
 
   const onMonthChange = useCallback((month: Date) => setCurrentMonth(month), []);
 
@@ -180,7 +182,7 @@ export default function CalendarPage() {
                   <MonthCalendar
                     days={days}
                     selectedDate={selectedDate}
-                    onSelectDate={setSelectedDate}
+                    onSelectDate={handleSelectDate}
                     showCaloriesInCell
                     onMonthChange={onMonthChange}
                   />

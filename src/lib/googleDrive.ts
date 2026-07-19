@@ -23,8 +23,14 @@ function getConfig(): DriveConfig | null {
 }
 
 /** フォルダ内の .txt ファイル一覧を取得（nextPageToken を辿り全件取得） */
-async function listTxtFiles(accessToken: string, folderId: string): Promise<{ id: string; name: string; modifiedTime: string }[]> {
-  const query = `'${folderId}' in parents and mimeType='text/plain' and trashed=false`;
+async function listTxtFiles(
+  accessToken: string,
+  folderId: string,
+  modifiedAfterIso?: string
+): Promise<{ id: string; name: string; modifiedTime: string }[]> {
+  let query = `'${folderId}' in parents and mimeType='text/plain' and trashed=false`;
+  // 同期対象期間より十分前のファイルを除外（フォルダが成長しても全件DLしないため）
+  if (modifiedAfterIso) query += ` and modifiedTime > '${modifiedAfterIso}'`;
   const fields = "nextPageToken,files(id,name,modifiedTime)";
 
   const allFiles: { id: string; name: string; modifiedTime: string }[] = [];
@@ -75,16 +81,19 @@ async function downloadFile(accessToken: string, fileId: string): Promise<string
 
 /**
  * Google Drive の Strong フォルダから .txt ファイルを取得する
+ * @param modifiedAfterIso この時刻(RFC3339)より後に更新されたファイルのみ取得（省略時は全件）
  * @returns ファイル名と内容の配列。環境変数未設定時はnull
  */
-export async function fetchStrongFilesFromDrive(): Promise<{ name: string; content: string }[] | null> {
+export async function fetchStrongFilesFromDrive(
+  modifiedAfterIso?: string
+): Promise<{ name: string; content: string }[] | null> {
   const config = getConfig();
   if (!config || !config.folderId) {
     return null;
   }
 
   const accessToken = await getGoogleAccessToken(config);
-  const files = await listTxtFiles(accessToken, config.folderId);
+  const files = await listTxtFiles(accessToken, config.folderId, modifiedAfterIso);
 
   if (files.length === 0) {
     return [];

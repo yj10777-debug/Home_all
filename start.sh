@@ -13,7 +13,7 @@ SERVER_PID=$!
 # サーバーの起動を待つ（最大30秒）
 echo "=== Waiting for server to be ready... ==="
 for i in $(seq 1 30); do
-  if wget -q --spider "http://localhost:${PORT}/api/sync/status" 2>/dev/null; then
+  if wget -q --spider --header="x-cron-secret: ${CRON_SECRET:-}" "http://localhost:${PORT}/api/sync/status" 2>/dev/null; then
     echo "=== Server is ready ==="
     break
   fi

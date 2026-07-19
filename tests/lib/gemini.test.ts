@@ -182,6 +182,28 @@ describe("generateWeeklyPrompt", () => {
     const datalessCount = (prompt.match(/データなし/g) || []).length;
     expect(datalessCount).toBe(12);
   });
+
+  it("平均カロリーは記録あり日のみで計算される（記録なし日を0として混ぜない）", async () => {
+    // 7日中3日だけ記録（600kcalずつ）。旧実装の ÷7 なら 257 になってしまうケース
+    const records = [];
+    for (let i = 1; i <= 3; i++) {
+      records.push({
+        date: `2026-02-0${i}`,
+        askenItems: [{ mealType: "昼食", name: "テスト食", amount: "1人前", calories: 600 }],
+        askenNutrients: {
+          "昼食": { "エネルギー": "600kcal", "たんぱく質": "40g", "脂質": "20g", "炭水化物": "70g" },
+        },
+        strongData: null,
+      });
+    }
+    mockFindMany.mockResolvedValueOnce(records);
+
+    const { generateWeeklyPrompt } = await import("@/lib/gemini");
+    const prompt = await generateWeeklyPrompt("2026-02-01");
+
+    expect(prompt).toContain("平均カロリー: 600 kcal/日（記録あり3日の平均");
+    expect(prompt).toContain("平均PFC: P40g / F20g / C70g");
+  });
 });
 
 // ─── getGemSystemPrompt テスト ──────────────────────

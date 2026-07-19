@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
-import { getGoals, getPersonal, setGoals, setPersonal, type Goals, type Personal } from "../../../lib/dbConfig";
+import { getGoals, getPersonal, setGoals, setPersonal, type Goals } from "../../../lib/dbConfig";
 import { getUserIdForConfig } from "../../../lib/auth";
 
 /**

@@ -118,7 +118,8 @@ Google連携: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`
 - `GOOGLE_DRIVE_HEALTH_FOLDER_ID`: Health Auto Export が JSON を保存する Drive フォルダ ID（HEALTH_SOURCE=drive のとき必須）
 
 本番必須: `SUPABASE_JWT_SECRET`（JWT検証用。未設定だと認証が常に失敗するフェイルクローズ仕様）, `CRON_SECRET`（未設定だと `/api/sync/cron` が 500 を返す）  
-本番: `CRON_SCHEDULE`
+本番: `CRON_SCHEDULE`  
+本番推奨: `BASIC_AUTH_USER` / `BASIC_AUTH_PASS` — 両方設定するとアプリ全体（ページ・API）にBasic認証がかかる（`src/proxy.ts`）。未設定なら無効。機械アクセス（session-guard / push-session 等）は `x-cron-secret` ヘッダが `CRON_SECRET` と一致すれば免除される。JWT保護は meals 系のみで、`/api/sync` や `/api/settings/system-prompt`・データ閲覧系は素の状態では無認証のため、本番URLを公開範囲に置く場合は必ず設定すること。
 
 ### ヘルスケアデータ取り込みの構成
 

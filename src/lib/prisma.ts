@@ -1,10 +1,11 @@
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { config as loadEnv } from "dotenv";
 
 // Prisma 7: アダプター必須。Next の前に .env を読むため dotenv を読み込む
 if (typeof window === "undefined") {
-  require("dotenv").config();
-  require("dotenv").config({ path: ".env.local" });
+  loadEnv();
+  loadEnv({ path: ".env.local" });
 }
 
 const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };

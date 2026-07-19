@@ -45,13 +45,6 @@ const MEAL_TYPE_LABELS: Record<string, string> = {
   "間食": "間食",
 };
 
-/** 食事タイプごとのアイコン色 */
-const MEAL_TYPE_COLORS: Record<string, string> = {
-  "朝食": "bg-amber-400",
-  "昼食": "bg-blue-400",
-  "夕食": "bg-indigo-400",
-  "間食": "bg-pink-400",
-};
 
 type AiEval = { id: string; response: string; model: string; trigger: string; createdAt: string };
 

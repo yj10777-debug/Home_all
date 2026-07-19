@@ -75,7 +75,7 @@ const server = http.createServer(async (req, res) => {
       }),
     });
 
-    const tokenData = await tokenRes.json() as any;
+    const tokenData = await tokenRes.json() as { refresh_token?: string };
 
     if (tokenData.refresh_token) {
       console.log("\n✅ リフレッシュトークン取得成功!\n");

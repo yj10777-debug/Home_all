@@ -43,6 +43,23 @@ describe("calculateDailyScore", () => {
       const r = calculateDailyScore(d);
       expect(r.details.energy.score).toBe(18);
     });
+
+    it("小数のカロリー収支でも区間から漏れない（-199.5 → 23点）", () => {
+      // 旧実装は整数前提の区間だったため -199.5 等が全区間から漏れて18点になっていた
+      const d = day({
+        askenNutrients: { 朝食: { エネルギー: String(GOAL_CALORIES - 199.5) + "kcal" } },
+      });
+      const r = calculateDailyScore(d);
+      expect(r.details.energy.score).toBe(23);
+    });
+
+    it("小数のカロリー収支でも区間から漏れない（-299.5 → 27点）", () => {
+      const d = day({
+        askenNutrients: { 朝食: { エネルギー: String(GOAL_CALORIES - 299.5) + "kcal" } },
+      });
+      const r = calculateDailyScore(d);
+      expect(r.details.energy.score).toBe(27);
+    });
   });
 
   describe("② たんぱく質（20点）", () => {

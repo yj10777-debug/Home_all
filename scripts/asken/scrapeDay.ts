@@ -107,13 +107,18 @@ export async function scrapeDay(dateStr: string, existingContext?: BrowserContex
 
     } catch (err) {
         console.error(`Scrape error (${dateStr}):`, err);
+        // 診断ファイルの保存自体が失敗しても、本来のエラーを握りつぶさない
         if (page) {
-            await page.screenshot({ path: ERROR_SCREENSHOT, fullPage: true });
-            fs.writeFileSync(ERROR_HTML, await page.content());
+            try {
+                await page.screenshot({ path: ERROR_SCREENSHOT, fullPage: true });
+                fs.writeFileSync(ERROR_HTML, await page.content());
+            } catch (diagErr) {
+                console.error('診断ファイル保存失敗:', diagErr instanceof Error ? diagErr.message : diagErr);
+            }
         }
         throw err;
     } finally {
-        if (page) await page.close();
-        if (browser) await browser.close();
+        try { if (page) await page.close(); } catch { /* close済み */ }
+        try { if (browser) await browser.close(); } catch { /* close済み */ }
     }
 }

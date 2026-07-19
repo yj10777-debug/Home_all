@@ -118,14 +118,10 @@ async function triggerPastSync() {
  */
 async function triggerDailyAiEvaluation() {
   const now = new Date();
-  // 前日の日付を計算（JST基準）
-  const yesterday = new Date(now.getTime() - 86400000);
-  const y = yesterday.getFullYear();
-  const m = String(yesterday.getMonth() + 1).padStart(2, "0");
-  const d = String(yesterday.getDate()).padStart(2, "0");
-  // UTCで計算しているので、JSTに変換
+  // 前日の日付を計算（JST基準。+9hシフト後は必ずUTCゲッターで読む — ローカルゲッターだと
+  // JSTマシンで二重シフトになる）
   const jstYesterday = new Date(now.getTime() + 9 * 3600000 - 86400000);
-  const dateStr = `${jstYesterday.getFullYear()}-${String(jstYesterday.getMonth() + 1).padStart(2, "0")}-${String(jstYesterday.getDate()).padStart(2, "0")}`;
+  const dateStr = `${jstYesterday.getUTCFullYear()}-${String(jstYesterday.getUTCMonth() + 1).padStart(2, "0")}-${String(jstYesterday.getUTCDate()).padStart(2, "0")}`;
 
   console.log(`[cron-ai] 前日(${dateStr})のAI評価を開始...`);
 

@@ -153,7 +153,18 @@ export async function fetchTrainingForDateRange(dates: Set<string>): Promise<Fet
     errors.push(...result.errors);
   } else {
     try {
-      const driveFiles = await fetchStrongFilesFromDrive();
+      // Drive の全件ダウンロードを避ける: 対象期間の最古日から30日前より後に
+      // 更新されたファイルだけ取得する（Strongのエクスポートはワークアウト日の
+      // 直後に書かれるため十分な余裕。それ以前に再編集された古いファイルは対象外）
+      let modifiedAfterIso: string | undefined;
+      const sorted = Array.from(dates).sort();
+      if (sorted.length > 0) {
+        const oldest = new Date(sorted[0] + "T00:00:00Z");
+        if (!Number.isNaN(oldest.getTime())) {
+          modifiedAfterIso = new Date(oldest.getTime() - 30 * 86400000).toISOString();
+        }
+      }
+      const driveFiles = await fetchStrongFilesFromDrive(modifiedAfterIso);
       if (driveFiles && driveFiles.length > 0) {
         const allParsed: { date: string; workoutName: string; exercises: { name: string; weight: number; reps: number }[] }[] = [];
         for (const file of driveFiles) {

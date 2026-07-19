@@ -8,6 +8,16 @@ export type ThemeId = "default" | "light" | "dark" | "pink" | "ocean";
 
 const VALID_THEMES: ThemeId[] = ["default", "light", "dark", "pink", "ocean"];
 
+/** useSyncExternalStore 用の購読リスナー */
+const themeListeners = new Set<() => void>();
+
+export function subscribeTheme(listener: () => void): () => void {
+  themeListeners.add(listener);
+  return () => {
+    themeListeners.delete(listener);
+  };
+}
+
 /**
  * 保存されているテーマIDを取得。無効な値の場合は "default"
  */
@@ -33,6 +43,7 @@ export function setStoredTheme(theme: ThemeId): void {
   } catch {
     // ignore
   }
+  themeListeners.forEach((listener) => listener());
 }
 
 /**

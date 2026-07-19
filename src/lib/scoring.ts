@@ -65,15 +65,15 @@ function scoreEnergy(calories: number, goalCalories: number, exerciseCalories: n
   const expenditure = getEstimatedExpenditure(goalCalories, exerciseCalories);
   const diff = calories - expenditure;
 
-  if (diff >= -500 && diff <= -300) return { score: 30, label: '-300〜-500 (30点)' };
-  if (diff >= -299 && diff <= -200) return { score: 27, label: '-200〜-299 (27点)' };
-  if (diff >= -700 && diff < -500) return { score: 27, label: '-500〜-700 (27点)' };
-  if (diff >= -199 && diff <= -100) return { score: 23, label: '-100〜-199 (23点)' };
-  if (diff >= -100 && diff <= 100) return { score: 18, label: '±100以内 (18点)' };
+  // 連続区間で判定する（整数前提の区間だと -199.5 のような小数値が全区間から漏れる）
   if (diff < -700) return { score: 22, label: '-700以下・高活動日 (22点)' };
-  if (diff >= 100 && diff < 200) return { score: 13, label: '+100〜+199 (13点)' };
-  if (diff >= 200) return { score: 9, label: '+200以上 (9点)' };
-  return { score: 18, label: '±100付近 (18点)' };
+  if (diff < -500) return { score: 27, label: '-500〜-700 (27点)' };
+  if (diff <= -300) return { score: 30, label: '-300〜-500 (30点)' };
+  if (diff <= -200) return { score: 27, label: '-200〜-299 (27点)' };
+  if (diff <= -100) return { score: 23, label: '-100〜-199 (23点)' };
+  if (diff <= 100) return { score: 18, label: '±100以内 (18点)' };
+  if (diff < 200) return { score: 13, label: '+100〜+199 (13点)' };
+  return { score: 9, label: '+200以上 (9点)' };
 }
 
 /** ② たんぱく質（20点） g/kg */
@@ -97,9 +97,7 @@ function scoreStimulus(day: DayData): { score: number; label: string } {
   }
 
   const compoundKeywords = ['Bench', 'Squat', 'Deadlift', 'Press', 'Row', 'Chin', 'Dip', 'スクワット', 'デッド', 'ベンチ', 'プレス', 'ロー'];
-  const lowerKeywords = ['Squat', 'Lunge', 'Leg', 'スクワット', 'ランジ', 'レッグ'];
   let hasCompound = false;
-  let hasLower = false;
   let totalSets = 0;
 
   for (const w of workouts) {
@@ -107,7 +105,6 @@ function scoreStimulus(day: DayData): { score: number; label: string } {
       totalSets += e.sets ?? 0;
       const name = (e.name ?? '').toLowerCase();
       if (compoundKeywords.some(k => name.includes(k.toLowerCase()))) hasCompound = true;
-      if (lowerKeywords.some(k => name.includes(k.toLowerCase()))) hasLower = true;
     }
   }
 

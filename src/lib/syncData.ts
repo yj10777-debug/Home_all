@@ -15,7 +15,6 @@ import {
 } from "./sources/strong";
 import { fetchHealthForDateRange } from "./sources/appleHealth";
 import type { HealthDayData, NutritionDayResult } from "./sources/types";
-import type { StrongDayData } from "./sources/types";
 
 // 既存 API（api/sync/strong 等）のため re-export
 export { parseTxtContent, buildStrongData, parseStrongFiles };

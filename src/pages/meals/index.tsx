@@ -38,8 +38,8 @@ export default function MealsIndex() {
             const data = await apiClient<{ mealLogs: Meal[] }>(`/meals?date=${targetDate}`);
             const list = data?.mealLogs;
             setMeals(Array.isArray(list) ? list : []);
-        } catch (err: any) {
-            setError(err.message || '食事データの取得に失敗しました');
+        } catch (err) {
+            setError(err instanceof Error && err.message ? err.message : '食事データの取得に失敗しました');
         } finally {
             setLoading(false);
         }
@@ -54,8 +54,8 @@ export default function MealsIndex() {
         try {
             await apiClient(`/meals/${id}`, { method: 'DELETE' });
             fetchMeals(date);
-        } catch (err: any) {
-            alert(err.message || '削除に失敗しました');
+        } catch (err) {
+            alert(err instanceof Error && err.message ? err.message : '削除に失敗しました');
         }
     };
 

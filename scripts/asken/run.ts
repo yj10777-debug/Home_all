@@ -16,15 +16,15 @@ const PROJECT_ROOT = process.cwd();
 const SECRETS_DIR = path.join(PROJECT_ROOT, 'secrets');
 const STATE_FILE = path.join(SECRETS_DIR, 'asken-state.json');
 
-/** 朝5時までは前日として扱う */
+/** 朝5時までは前日として扱う（サーバーTZに依存せずJST基準で計算する） */
 function todayStr() {
     const now = new Date();
-    // JST = UTC+9
-    const jstHour = (now.getUTCHours() + 9) % 24;
-    const effective = jstHour < 5 ? new Date(now.getTime() - 86400000) : now;
-    const y = effective.getFullYear();
-    const m = String(effective.getMonth() + 1).padStart(2, '0');
-    const d = String(effective.getDate()).padStart(2, '0');
+    // JST = UTC+9 に平行移動し、UTCメソッドでJSTの暦日を取得する
+    const jst = new Date(now.getTime() + 9 * 3600000);
+    const effective = jst.getUTCHours() < 5 ? new Date(jst.getTime() - 86400000) : jst;
+    const y = effective.getUTCFullYear();
+    const m = String(effective.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(effective.getUTCDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
 }
 
@@ -184,8 +184,10 @@ async function run() {
         console.error('Fatal Error:', e);
         process.exit(1);
     } finally {
-        await context.close();
-        await browser.close();
+        // 再ログイン経路で既にcloseされている場合があるため、二重closeの例外で
+        // 本来のエラーを握りつぶさない
+        try { await context.close(); } catch { /* close済み */ }
+        try { await browser.close(); } catch { /* close済み */ }
     }
 }
 
